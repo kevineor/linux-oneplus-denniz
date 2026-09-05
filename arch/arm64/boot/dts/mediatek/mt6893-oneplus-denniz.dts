@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (c) 2026 Kevin Andrieux
+ *
+ * OnePlus Nord 2 5G (DN2101 / DN2103), codename "denniz".
+ */
+
+/dts-v1/;
+
+#include "mt6893.dtsi"
+#include "mt6359.dtsi"
+
+/ {
+	model = "OnePlus Nord 2 5G";
+	chassis-type = "handset";
+	compatible = "oneplus,denniz", "mediatek,mt6893";
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	chosen {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		stdout-path = "serial0:921600n8";
+
+		/*
+		 * No earlycon: the UART clock is not set up that early.
+		 * ramoops must be uncached (mem_type=1), write-combined records
+		 * do not survive a reset.
+		 */
+		bootargs = "console=tty0 clk_ignore_unused regulator_ignore_unused pd_ignore_unused ignore_loglevel panic=1 ramoops.mem_address=0x48090000 ramoops.mem_size=0xe0000 ramoops.console_size=0x40000 ramoops.pmsg_size=0x10000 ramoops.mem_type=1 printk.devkmsg=on g_ether.dev_addr=32:70:05:18:ff:01 g_ether.host_addr=32:70:05:18:ff:02";
+	};
+
+	/*
+	 * Filled in by the bootloader, which looks the memory node up by this
+	 * exact path and injects its own reserved regions.
+	 */
+	memory {
+		device_type = "memory";
+		reg = <0x0 0x40000000 0x0 0x3e605000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+	};
+
+	vusb33: regulator-vusb33 {
+		compatible = "regulator-fixed";
+		regulator-name = "vusb33";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
+	vbus: regulator-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&usb_phy {
+	status = "okay";
+};
+
+&ssusb {
+	status = "okay";
+
+	dr_mode = "peripheral";
+	maximum-speed = "high-speed";
+	mediatek,u3p-dis-msk = <1>;
+
+	vusb33-supply = <&vusb33>;
+	vbus-supply = <&vbus>;
+
+	/* VBUS does not reach the PHY on this board. */
+	mediatek,force-vbus;
+};
+
+&u2port0 {
+	mediatek,force-vbus;
+};
+
+&ufsphy {
+	status = "okay";
+};
+
+&ufs {
+	status = "okay";
+};
+
+&pwrap {
+	pmic {
+		interrupts-extended = <&pio 222 IRQ_TYPE_LEVEL_HIGH>;
+	};
+};
+
+&mfg0 {
+	domain-supply = <&mt6359_vgpu11_buck_reg>;
+};
