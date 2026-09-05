@@ -110,6 +110,10 @@ static int mtu3_device_enable(struct mtu3 *mtu)
 		(SSUSB_U2_PORT_DIS | SSUSB_U2_PORT_PDN |
 		SSUSB_U2_PORT_HOST_SEL));
 
+	/* For boards where VBUS does not reach the PHY. */
+	if (mtu->ssusb->force_vbus)
+		mtu3_setbits(ibase, SSUSB_U2_CTRL(0), SSUSB_U2_PORT_VBUSVALID);
+
 	if (mtu->ssusb->dr_mode == USB_DR_MODE_OTG) {
 		mtu3_setbits(ibase, SSUSB_U2_CTRL(0), SSUSB_U2_PORT_OTG_SEL);
 		if (mtu->u3_capable)

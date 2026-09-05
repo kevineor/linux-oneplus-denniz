@@ -262,6 +262,7 @@ struct ssusb_mtk {
 	struct otg_switch_mtk otg_switch;
 	enum usb_dr_mode dr_mode;
 	bool is_host;
+	bool force_vbus;
 	int u2_ports;
 	int u3_ports;
 	int u2p_dis_msk;
