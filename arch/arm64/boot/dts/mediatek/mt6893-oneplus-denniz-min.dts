@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (c) 2026 Kevin Andrieux
+ *
+ * OnePlus Nord 2 5G (minimal) (DN2101 / DN2103), codename "denniz".
+ *
+ * Bring-up bisection tree: mt6893.dtsi with nothing enabled.
+ */
+
+/dts-v1/;
+
+#include "mt6893.dtsi"
+
+/ {
+	model = "OnePlus Nord 2 5G (minimal)";
+	chassis-type = "handset";
+	compatible = "oneplus,denniz", "mediatek,mt6893";
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	chosen {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		stdout-path = "serial0:921600n8";
+
+		bootargs = "console=tty0 clk_ignore_unused regulator_ignore_unused pd_ignore_unused ignore_loglevel panic=1 ramoops.mem_address=0x48090000 ramoops.mem_size=0xe0000 ramoops.console_size=0x40000 ramoops.pmsg_size=0x10000";
+	};
+
+	/* Filled in by the bootloader. */
+	memory {
+		device_type = "memory";
+		reg = <0x0 0x40000000 0x0 0x3e605000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+	};
+
+};
