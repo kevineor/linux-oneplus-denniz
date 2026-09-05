@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (c) 2026 Kevin Andrieux
+ *
+ * OnePlus Nord 2 5G, variant for the stock bootloader.
+ *
+ * mt6893-oneplus-denniz.dts plus the empty nodes the LK needs: it applies a
+ * dtbo entry as an overlay and crashes if a label does not resolve.
+ *
+ * Check before flashing:
+ *     ./tools/check-overlay.sh <this file>.dtb
+ */
+
+#include "mt6893-oneplus-denniz.dts"
+#include "mt6893-oneplus-denniz-lk-stubs.dtsi"
+
+/ {
+	model = "OnePlus Nord 2 5G (compatible LK)";
+
+	/*
+	 * Looked up by path in the merged tree, with their stock contents. No
+	 * mainline driver matches these compatibles.
+	 */
+	toprgu@10007000 {
+		compatible = "mediatek,toprgu";
+		reg = <0 0x10007000 0 0x1000>;
+	};
+
+	gpio@10005000 {
+		compatible = "mediatek,gpio";
+		reg = <0 0x10005000 0 0x1000>;
+	};
+};

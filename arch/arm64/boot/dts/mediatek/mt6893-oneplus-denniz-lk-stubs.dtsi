@@ -1,0 +1,119 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Bootloader compatibility layer. GENERATED, DO NOT EDIT.
+ *   python3 tools/gen-lk-stubs.py <base.dtb> <stock.fdt> > stubs.dtsi
+ *
+ * The LK applies a dtbo entry as an overlay, then reads the merged tree back
+ * by absolute path: every label the overlay refers to must exist, at the path
+ * it has in the stock tree (from its __symbols__). These nodes only carry a
+ * label and receive the overlay; they have no compatible.
+ *
+ * 63 labels expected, 15 already in the mainline tree, 48 added here.
+ */
+
+/ {
+	accdet: accdet {
+	};
+	audio_extend: audio_extend {
+	};
+	bat_gm30: battery {
+	};
+	charger: charger {
+	};
+	chosen: chosen {
+	};
+	disp_leds: disp_leds {
+	};
+	dispsys_config: dispsys_config@14116000 {
+	};
+	dsi0: dsi@1400e000 {
+	};
+	dsi_te: dsi_te {
+	};
+	goodix_fp: fingerprint {
+	};
+	mmc_fixed_3v3: fixedregulator@0 {
+	};
+	mmc_fixed_1v8_io: fixedregulator@1 {
+	};
+	gpio: gpio@10005000 {
+	};
+	gpio_usage_mapping: gpio_usage_mapping {
+	};
+	gps: gps@18C00000 {
+	};
+	i2c11: i2c11@1101A000 {
+	};
+	irq_nfc: irq_nfc {
+	};
+	kd_camera_hw1: kd_camera_hw1@1a004000 {
+	};
+	keypad: kp@10010000 {
+	};
+	lk_charger: lk_charger {
+	};
+	md1_sim1_hot_plug_eint: md1_sim1_hot_plug_eint {
+	};
+	md_auxadc: md_auxadc {
+	};
+	mrdump_ext_rst: mrdump_ext_rst {
+	};
+	mt6360_ldo_dts {
+		mt_pmic_vtp_ldo_reg: ldo2 {
+		};
+		mt_pmic_vmc_ldo_reg: ldo3 {
+		};
+		mt_pmic_vmch_ldo_reg: ldo5 {
+		};
+	};
+	mt6360_pmic: mt6360_pmic_dts {
+	};
+	mt6360_pmu: mt6360_pmu_dts {
+		adc: adc {
+		};
+	};
+	subpmic_pmu_eint: mt6360_pmu_eint {
+	};
+	mtkfb: mtkfb {
+	};
+	odm: odm {
+	};
+	oplus_fp_common: oplus_fp_common {
+	};
+	phy_tuning: phy_tuning {
+	};
+	pmic_clock_buffer_ctrl: pmic_clock_buffer_ctrl {
+	};
+	pwm_leds: pwmleds {
+	};
+	pwrap@10026000 {
+		mt6359-pmic {
+			mt6359regulator {
+				mt_pmic_vcamio_ldo_reg: ldo_vcamio {
+				};
+				mt_pmic_vibr_ldo_reg: ldo_vibr {
+				};
+				mt_pmic_vio18_ldo_reg: ldo_vio18 {
+				};
+				mt_pmic_vio28_ldo_reg: ldo_vio28 {
+				};
+			};
+		};
+	};
+	reserved_memory: reserved-memory {
+	};
+	apuart0: serial@11002000 {
+	};
+	smart_pa: smart_pa {
+	};
+	sound: sound {
+	};
+	swtp: swtp {
+	};
+	tcpc_pd: tcpc_pd {
+	};
+	touch: touch {
+	};
+	mt6360_typec: type_c_port0 {
+	};
+};

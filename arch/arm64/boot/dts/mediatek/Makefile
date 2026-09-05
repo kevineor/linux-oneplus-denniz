@@ -7,6 +7,8 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += mt6795-sony-xperia-m5.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt6797-evb.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt6797-x20-dev.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt6893-oneplus-denniz.dtb
+dtb-$(CONFIG_ARCH_MEDIATEK) += mt6893-oneplus-denniz-lk.dtb
+dtb-$(CONFIG_ARCH_MEDIATEK) += mt6893-oneplus-denniz-hybrid.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt7622-rfb1.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt7622-bananapi-bpi-r64.dtb
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt7981b-cudy-wr3000-v1.dtb
@@ -189,3 +191,13 @@ DTC_FLAGS_mt7988a-bananapi-bpi-r4-2g5 := -@
 DTC_FLAGS_mt7988a-bananapi-bpi-r4-pro-4e := -@
 DTC_FLAGS_mt7988a-bananapi-bpi-r4-pro-8x := -@
 DTC_FLAGS_mt8395-radxa-nio-12l := -@
+
+# The LK applies an overlay and injects its reserved regions in place: leave
+# room for it, as the stock tree does.
+DTC_FLAGS_mt6893-oneplus-denniz-lk := -@ -S 200000 -Wno-unit_address_vs_reg -Wno-unit_address_format
+
+# No -@: the hybrid tree carries the stock __symbols__ node.
+DTC_FLAGS_mt6893-oneplus-denniz-hybrid := -S 400000 -Wno-unit_address_vs_reg \
+	-Wno-unit_address_format -Wno-reg_format -Wno-avoid_default_addr_size \
+	-Wno-simple_bus_reg -Wno-interrupt_provider \
+	-Wno-unique_unit_address

@@ -32,7 +32,7 @@
 		 * ramoops must be uncached (mem_type=1), write-combined records
 		 * do not survive a reset.
 		 */
-		bootargs = "console=tty0 clk_ignore_unused regulator_ignore_unused pd_ignore_unused ignore_loglevel panic=1 ramoops.mem_address=0x48090000 ramoops.mem_size=0xe0000 ramoops.console_size=0x40000 ramoops.pmsg_size=0x10000 ramoops.mem_type=1 printk.devkmsg=on g_ether.dev_addr=32:70:05:18:ff:01 g_ether.host_addr=32:70:05:18:ff:02";
+		bootargs = "console=tty0 clk_ignore_unused regulator_ignore_unused pd_ignore_unused panic=1 ramoops.mem_address=0x48090000 ramoops.mem_size=0xe0000 ramoops.console_size=0x40000 ramoops.pmsg_size=0x10000 ramoops.mem_type=1 printk.devkmsg=on g_ether.dev_addr=32:70:05:18:ff:01 g_ether.host_addr=32:70:05:18:ff:02";
 	};
 
 	/*
