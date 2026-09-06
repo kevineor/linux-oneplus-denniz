@@ -921,6 +921,7 @@
 			clocks = <&imp_iic_wrap_c CLK_IMP_IIC_WRAP_C_AP_I2C0>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -933,6 +934,7 @@
 			clocks = <&imp_iic_wrap_s CLK_IMP_IIC_WRAP_S_AP_I2C1>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -945,6 +947,7 @@
 			clocks = <&imp_iic_wrap_s CLK_IMP_IIC_WRAP_S_AP_I2C2>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -957,6 +960,7 @@
 			clocks = <&imp_iic_wrap_e CLK_IMP_IIC_WRAP_E_AP_I2C3>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -969,6 +973,7 @@
 			clocks = <&imp_iic_wrap_s CLK_IMP_IIC_WRAP_S_AP_I2C4>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -981,6 +986,7 @@
 			clocks = <&imp_iic_wrap_n CLK_IMP_IIC_WRAP_N_AP_I2C5>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -993,6 +999,7 @@
 			clocks = <&imp_iic_wrap_n CLK_IMP_IIC_WRAP_N_AP_I2C6>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -1005,6 +1012,7 @@
 			clocks = <&imp_iic_wrap_s CLK_IMP_IIC_WRAP_S_AP_I2C7>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -1017,6 +1025,7 @@
 			clocks = <&imp_iic_wrap_s CLK_IMP_IIC_WRAP_S_AP_I2C8>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -1029,6 +1038,7 @@
 			clocks = <&imp_iic_wrap_e CLK_IMP_IIC_WRAP_E_AP_I2C9>,
 				 <&infracfg CLK_INFRA_AO_APDMA>;
 			clock-names = "main", "dma";
+			clock-div = <5>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
