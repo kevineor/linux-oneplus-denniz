@@ -134,7 +134,19 @@ struct mt6360_chg_info {
 	bool bc12_en;
 	int psy_usb_type;
 	struct work_struct chrdet_work;
+	struct power_supply *bat_psy;
+	struct delayed_work ceiling_work;
+	int ceiling;
+	bool ceiling_inhibited;
 };
+
+/*
+ * Charge ceiling. The state of charge comes from a separate fuel gauge, so the
+ * ceiling is enforced by polling it and toggling the same FSLP bit as
+ * POWER_SUPPLY_PROP_ONLINE, with some hysteresis.
+ */
+#define MT6360_CEILING_HYST		2
+#define MT6360_CEILING_POLL_MS		30000
 
 enum mt6360_iinlmtsel {
 	MT6360_IINLMTSEL_AICR_3250 = 0,
@@ -443,6 +455,85 @@ static int mt6360_charger_set_ieoc(struct mt6360_chg_info *mci,
 				  sel << MT6360_IEOC_SHFT);
 }
 
+/* Shares FSLP with POWER_SUPPLY_PROP_ONLINE: the last write wins. */
+static int mt6360_chg_inhibit(struct mt6360_chg_info *mci, bool inhibit)
+{
+	union power_supply_propval val = { .intval = inhibit ? 0 : 1 };
+
+	return mt6360_charger_set_online(mci, &val);
+}
+
+static void mt6360_chg_ceiling_work(struct work_struct *work)
+{
+	struct mt6360_chg_info *mci = container_of(work, struct mt6360_chg_info,
+						   ceiling_work.work);
+	union power_supply_propval val;
+	int ret, cap;
+
+	if (!mci->ceiling || !mci->bat_psy)
+		return;
+
+	ret = power_supply_get_property(mci->bat_psy,
+					POWER_SUPPLY_PROP_CAPACITY, &val);
+	if (ret) {
+		/* Better overcharged than drained by a silent gauge. */
+		if (mci->ceiling_inhibited) {
+			dev_warn(mci->dev,
+				 "capacity unreadable (%d), releasing charge inhibit\n",
+				 ret);
+			if (!mt6360_chg_inhibit(mci, false))
+				mci->ceiling_inhibited = false;
+		}
+		goto again;
+	}
+	cap = val.intval;
+
+	if (!mci->ceiling_inhibited && cap >= mci->ceiling) {
+		if (!mt6360_chg_inhibit(mci, true)) {
+			mci->ceiling_inhibited = true;
+			dev_info(mci->dev, "charge inhibited at %d%%\n", cap);
+		}
+	} else if (mci->ceiling_inhibited &&
+		   cap <= mci->ceiling - MT6360_CEILING_HYST) {
+		if (!mt6360_chg_inhibit(mci, false)) {
+			mci->ceiling_inhibited = false;
+			dev_info(mci->dev, "charge resumed at %d%%\n", cap);
+		}
+	}
+
+again:
+	schedule_delayed_work(&mci->ceiling_work,
+			      msecs_to_jiffies(MT6360_CEILING_POLL_MS));
+}
+
+static int mt6360_charger_set_ceiling(struct mt6360_chg_info *mci,
+				      const union power_supply_propval *val)
+{
+	int ceiling = val->intval;
+
+	if (ceiling < 0 || ceiling > 100)
+		return -EINVAL;
+
+	if (ceiling && !mci->bat_psy)
+		return -ENODEV;
+
+	cancel_delayed_work_sync(&mci->ceiling_work);
+
+	if (!ceiling && mci->ceiling_inhibited) {
+		int ret = mt6360_chg_inhibit(mci, false);
+
+		if (ret)
+			return ret;
+		mci->ceiling_inhibited = false;
+	}
+
+	mci->ceiling = ceiling;
+	if (ceiling)
+		schedule_delayed_work(&mci->ceiling_work, 0);
+
+	return 0;
+}
+
 static int mt6360_charger_get_property(struct power_supply *psy,
 				       enum power_supply_property psp,
 				       union power_supply_propval *val)
@@ -484,6 +575,9 @@ static int mt6360_charger_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
 		ret = mt6360_charger_get_ieoc(mci, val);
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
+		val->intval = mci->ceiling;
+		return 0;
 	case POWER_SUPPLY_PROP_USB_TYPE:
 		val->intval = mci->psy_usb_type;
 		break;
@@ -522,6 +616,9 @@ static int mt6360_charger_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
 		ret = mt6360_charger_set_ieoc(mci, val);
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
+		ret = mt6360_charger_set_ceiling(mci, val);
+		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -539,6 +636,7 @@ static int mt6360_charger_property_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_INPUT_VOLTAGE_LIMIT:
 	case POWER_SUPPLY_PROP_PRECHARGE_CURRENT:
 	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD:
 		return 1;
 	default:
 		return 0;
@@ -557,6 +655,7 @@ static enum power_supply_property mt6360_charger_properties[] = {
 	POWER_SUPPLY_PROP_INPUT_VOLTAGE_LIMIT,
 	POWER_SUPPLY_PROP_PRECHARGE_CURRENT,
 	POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT,
+	POWER_SUPPLY_PROP_CHARGE_CONTROL_END_THRESHOLD,
 	POWER_SUPPLY_PROP_USB_TYPE,
 };
 
@@ -793,6 +892,20 @@ static int mt6360_charger_probe(struct platform_device *pdev)
 	ret = devm_work_autocancel(&pdev->dev, &mci->chrdet_work, mt6360_chrdet_work);
 	if (ret)
 		return dev_err_probe(&pdev->dev, ret, "Failed to set delayed work\n");
+
+	ret = devm_delayed_work_autocancel(&pdev->dev, &mci->ceiling_work,
+					   mt6360_chg_ceiling_work);
+	if (ret)
+		return dev_err_probe(&pdev->dev, ret, "Failed to set ceiling work\n");
+
+	/* Optional: without it, setting a ceiling returns -ENODEV. */
+	mci->bat_psy = devm_power_supply_get_by_reference(&pdev->dev,
+							  "mediatek,charge-monitor");
+	if (IS_ERR(mci->bat_psy)) {
+		dev_dbg(&pdev->dev, "no charge monitor (%pe), ceiling disabled\n",
+			mci->bat_psy);
+		mci->bat_psy = NULL;
+	}
 
 	ret = device_property_read_u32(&pdev->dev, "richtek,vinovp-microvolt", &mci->vinovp);
 	if (ret)
