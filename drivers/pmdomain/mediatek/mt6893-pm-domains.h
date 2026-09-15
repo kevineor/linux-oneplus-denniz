@@ -466,7 +466,7 @@ static const struct scpsys_domain_data scpsys_domain_data_mt6893[] = {
 		},
 	},
 	[MT6893_POWER_DOMAIN_ADSP] = {
-		.name = "audio",
+		.name = "adsp",
 		.sta_mask = BIT(22),
 		.ctl_offs = 0x358,
 		.pwr_sta_offs = 0x16c,
