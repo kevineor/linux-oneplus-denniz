@@ -1,0 +1,248 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Copyright (c) 2020 MediaTek Inc.
+ * Copyright (c) 2026 Kevin Andrieux
+ *
+ * Connectivity subsystem registers, named after the vendor CODA headers, as
+ * offsets from the start of the node's reg range at 0x18000000.
+ */
+
+#ifndef __MT6893_REGS_H
+#define __MT6893_REGS_H
+
+#define CONN_INFRA_RGU			0x0000000
+#define CONN_INFRA_RGU_SYSRAM_PDN	(CONN_INFRA_RGU + 0x038)
+#define CONN_INFRA_RGU_SYSRAM_SLP	(CONN_INFRA_RGU + 0x03c)
+#define CONN_INFRA_RGU_COEXT_PDN	(CONN_INFRA_RGU + 0x050)
+#define CONN_INFRA_RGU_COEXT_SLP	(CONN_INFRA_RGU + 0x054)
+
+#define CONN_INFRA_CFG			0x0001000
+#define CONN_HW_VER			(CONN_INFRA_CFG + 0x000)
+#define CONN_CFG_ID			(CONN_INFRA_CFG + 0x004)
+#define CONN_ADIE_CTL			(CONN_INFRA_CFG + 0x900)
+#define CONN_ADIE_RSTB			BIT(0)
+
+/* SPI master to the A-die. */
+#define CONN_RF_SPI			0x0004000
+#define CONN_RF_SPI_STA			(CONN_RF_SPI + 0x000)
+#define CONN_RF_SPI_BUSY		BIT(5)
+#define CONN_RF_SPI_ADDR		(CONN_RF_SPI + 0x050)
+#define CONN_RF_SPI_WDAT		(CONN_RF_SPI + 0x054)
+#define CONN_RF_SPI_RDAT		(CONN_RF_SPI + 0x058)
+#define CONN_RF_SPI_READ		0xb000
+#define CONN_RF_SPI_WRITE		0xa000
+#define CONN_RF_SPI_FM_CTRL		(CONN_RF_SPI + 0x00c)
+#define CONN_RF_SPI_FM_RD_EXT		(BIT(15) | GENMASK(7, 0))
+
+/*
+ * conn_infra sysram, where the host leaves the A-die ID, its efuses and the
+ * radio status for the firmware.
+ */
+#define CONN_INFRA_SYSRAM		0x0050000
+#define CONN_INFRA_SYSRAM_SIZE		0x4000
+#define CONN_SYSRAM_ADIE_CHIP_ID	(CONN_INFRA_SYSRAM + 0x2800)
+#define CONN_SYSRAM_ADIE_EFUSE(n)	(CONN_INFRA_SYSRAM + 0x2804 + (n) * 4)
+#define CONN_SYSRAM_RADIO_STATUS	(CONN_INFRA_SYSRAM + 0x2834)
+#define CONN_SYSRAM_RADIO_WIFI		BIT(3)
+
+/* conn_infra analog front-end: PLLs, RC and TX calibration. */
+#define CONN_AFE_CTL			0x0003000
+#define CONN_AFE_DIG_EN_01		(CONN_AFE_CTL + 0x000)
+#define CONN_AFE_EN_RCK			BIT(0)
+#define CONN_AFE_EN_TXCAL		GENMASK(21, 17)	/* BT, WF0 to WF3 */
+#define CONN_AFE_DIG_EN_02		(CONN_AFE_CTL + 0x004)
+#define CONN_AFE_DIG_EN_03		(CONN_AFE_CTL + 0x008)
+#define CONN_AFE_WBG_AFE_01		(CONN_AFE_CTL + 0x010)
+#define CONN_AFE_WBG_RCK_01		(CONN_AFE_CTL + 0x018)
+#define CONN_AFE_WBG_GL1_01		(CONN_AFE_CTL + 0x040)
+#define CONN_AFE_WBG_BT_TX_03		(CONN_AFE_CTL + 0x058)
+#define CONN_AFE_WBG_WF0_TX_03		(CONN_AFE_CTL + 0x078)
+#define CONN_AFE_WBG_WF1_TX_03		(CONN_AFE_CTL + 0x094)
+#define CONN_AFE_PLL_STB_TIME		(CONN_AFE_CTL + 0x0f4)
+#define CONN_AFE_WBG_GL5_01		(CONN_AFE_CTL + 0x100)
+
+#define CONN_TOP_THERM_AADDR		0x0002018
+#define CONN_TOP_THERM_AADDR_MT6635	0x50305a00
+
+/* A-die registers, behind the SPI master. */
+#define ATOP_RG_TOP_THADC_BG		0x034
+#define ATOP_RG_TOP_THADC		0x038
+#define ATOP_WRI_CTR2			0x064
+#define ATOP_RG_ENCAL_WBTAC_IF_SW	0x070
+#define ATOP_SMCTK11			0x0bc
+#define ATOP_EFUSE_CTRL			0x108
+#define ATOP_EFUSE_KICK			BIT(30)
+#define ATOP_EFUSE_VALID		BIT(29)
+#define ATOP_EFUSE_CLR			(BIT(30) | GENMASK(25, 16) | GENMASK(7, 6))
+#define ATOP_EFUSE_RDATA(n)		(0x130 + (n) * 4)
+#define ATOP_RG_WF0_TOP_01		0x380
+#define ATOP_RG_WF0_BG			0x384
+#define ATOP_RG_WF1_TOP_01		0x390
+#define ATOP_RG_WF1_BG			0x394
+#define ATOP_RG_TOP_XTAL_01		0xa18
+#define ATOP_RG_TOP_XTAL_02		0xa1c
+
+#define CONN_WT_SLP_CTL			0x0005000
+
+#define CONN_AFE_CTL_PLL		0x0003008
+#define CONN_AFE_CTL_BPLL_EN		BIT(21)
+#define CONN_AFE_CTL_WPLL_EN		BIT(20)
+#define CONN_INFRA_BRCM_VDNR		0x000e06c
+#define CONN_INFRA_BRCM_WF_VDNR_EN	BIT(0)
+
+/* The upper half of the WFSYS power control is a write key. */
+#define WFSYS_ON_TOP_PWR_CTL		(CONN_INFRA_RGU + 0x000)
+#define WFSYS_ON_TOP_PWR_KEY		0x57460000
+#define WFSYS_ON_TOP_PWR_KEEP		0x0000ff7f
+#define WFSYS_ON_TOP_PWR_ON		BIT(7)
+#define WFSYS_CPU_SW_RST		(CONN_INFRA_RGU + 0x010)
+#define WFSYS_CPU_SW_RST_B		BIT(0)
+#define WFSYS_SW_RST			(CONN_INFRA_RGU + 0x018)
+#define WFSYS_SW_RST_B			BIT(0)
+
+/*
+ * Sleep protections between conn_infra and WFSYS (AXI, any access to WFSYS
+ * faults while set) and on the WFDMA path. Both must be released.
+ */
+#define CONN_WF_SLP_CTRL		(CONN_INFRA_CFG + 0x620)
+#define CONN_WFDMA_SLP_CTRL		(CONN_INFRA_CFG + 0x624)
+#define CONN_SLP_PROT_EN		BIT(0)
+#define CONN_SLP_PROT_ACK		BIT(3)
+
+#define WF_TOP_MISC_OFF			0x04b0000
+#define WFSYS_VERSION_ID		(WF_TOP_MISC_OFF + 0x010)
+#define WFSYS_VERSION_ID_MT6893		0x20010000
+
+/*
+ * AP2WF remap: the 64 KiB window at WF_DYNAMIC maps the connsys address
+ * written to CONN_INFRA_AP2WF_REMAP_1.
+ */
+#define CONN_INFRA_AP2WF_REMAP_1	(CONN_INFRA_CFG + 0x120)
+#define CONN_MCU_CONFG_HS_BASE		0x89040000
+#define WF_DYNAMIC			0x0500000
+#define WF_DYNAMIC_MCU_EMI_ENTRY	(WF_DYNAMIC + 0x1dc)
+#define WF_DYNAMIC_WF_EMI_ENTRY		(WF_DYNAMIC + 0x1e0)
+
+#define WF_TOP_MISC_ON			0x04c0000
+#define WF_ROM_CODE_INDEX		(WF_TOP_MISC_ON + 0x1604)
+#define WF_ROM_CODE_INDEX_DONE		0x00001d1e
+
+#define ATOP_CHIP_ID			0x02c
+#define ATOP_CHIP_ID_MT6635		0x6635
+
+#define CONN_HOST_CSR			0x0060000
+#define CONN_ON2OFF_SLP_PROT_ACK	(CONN_HOST_CSR + 0x184)
+#define CONN_ON2OFF_SLP_PROT_ACK_BIT	BIT(5)
+#define CONN_INFRA_FORCE_ON		(CONN_HOST_CSR + 0x1a0)
+#define CONNSYS_PWR_STATUS		(CONN_HOST_CSR + 0x2cc)
+#define CONNSYS_PWR_STATUS_WFSYS	BIT(2)
+
+/* Same register and bits as MT_CONN_ON_LPCTL on the PCIe mt792x. */
+#define CONN_HOST_LPCTL			(CONN_HOST_CSR + 0x010)
+#define CONN_ON_MISC			(CONN_HOST_CSR + 0x0f0)
+#define CONN_LPCR_HOST_SET_OWN		BIT(0)
+#define CONN_LPCR_HOST_CLR_OWN		BIT(1)
+#define CONN_LPCR_HOST_OWN_SYNC		BIT(2)
+
+#define WFSYS_CPUPCR			(CONN_HOST_CSR + 0x204)
+#define WFSYS_CPU_LP			(CONN_HOST_CSR + 0x208)
+
+/*
+ * connsys view of the AP side, in 64 KiB units. The peripheral windows point
+ * to the SoC peripheral base at 0x10000000.
+ */
+#define CONN2AP_REMAP_MCU_EMI		(CONN_HOST_CSR + 0x1c4)
+#define CONN2AP_REMAP_WF_PERI		(CONN_HOST_CSR + 0x1d4)
+#define CONN2AP_REMAP_BT_PERI		(CONN_HOST_CSR + 0x1d8)
+#define CONN2AP_REMAP_GPS_PERI		(CONN_HOST_CSR + 0x1dc)
+#define CONN2AP_REMAP_ADDR		GENMASK(19, 0)
+#define CONN2AP_REMAP_SHIFT		16
+#define CONN2AP_REMAP_PERI		0x01000
+
+#define CONN_HW_VER_MT6893		0x20010101
+
+/*
+ * WFDMA0 carries the RX data rings, WFDMA1 the TX rings and the MCU event
+ * ring. Register layout within a block is the one of MT7981/MT7986.
+ */
+#define MT6893_WFDMA0_BASE			0x0024000
+#define MT6893_WFDMA1_BASE			0x0025000
+#define MT6893_WFDMA0(ofs)			(MT6893_WFDMA0_BASE + (ofs))
+#define MT6893_WFDMA1(ofs)			(MT6893_WFDMA1_BASE + (ofs))
+
+#define MT6893_WFDMA_RST			0x0100
+#define MT6893_WFDMA_RST_LOGIC_RST		BIT(4)
+#define MT6893_WFDMA_RST_DMASHDL_ALL_RST	BIT(5)
+
+#define MT6893_WFDMA_GLO_CFG		0x0208
+#define MT6893_WFDMA_GLO_CFG_TX_DMA_EN	BIT(0)
+#define MT6893_WFDMA_GLO_CFG_TX_DMA_BUSY	BIT(1)
+#define MT6893_WFDMA_GLO_CFG_RX_DMA_EN	BIT(2)
+#define MT6893_WFDMA_GLO_CFG_RX_DMA_BUSY	BIT(3)
+#define MT6893_WFDMA_GLO_CFG_PDMA_BT_SIZE	GENMASK(5, 4)
+#define MT6893_WFDMA_GLO_CFG_TX_WB_DDONE	BIT(6)
+#define MT6893_WFDMA_GLO_CFG_FIFO_LITTLE_ENDIAN	BIT(12)
+#define MT6893_WFDMA_GLO_CFG_CLK_GATE_DIS	BIT(30)
+#define MT6893_WFDMA_GLO_CFG_OMIT_RX_INFO_PFET2	BIT(21)
+#define MT6893_WFDMA_GLO_CFG_CSR_DISP_BASE_PTR_CHAIN_EN	BIT(15)
+#define MT6893_WFDMA_GLO_CFG_OMIT_RX_INFO	BIT(27)
+#define MT6893_WFDMA_GLO_CFG_OMIT_TX_INFO	BIT(28)
+
+#define MT6893_WFDMA_HOST_INT_STA		0x0200
+#define MT6893_WFDMA_HOST_INT_ENA		0x0204
+#define MT6893_WFDMA_HOST_INT_ENA_SET	0x0228
+#define MT6893_WFDMA_HOST_INT_ENA_CLR	0x022c
+
+#define MT6893_WFDMA_RST_DTX_PTR		0x020c
+#define MT6893_WFDMA_RST_DRX_PTR		0x0280
+
+#define MT6893_TX_RING_BASE			0x0300
+#define MT6893_RX_RING_BASE			0x0500
+#define MT6893_TX_RING_EXT_CTRL_BASE	0x0600
+#define MT6893_RX_RING_EXT_CTRL_BASE	0x0680
+
+/*
+ * conn_hif_wrap aggregates the interrupts of both WFDMA blocks onto the single
+ * GIC line. Same layout as MT_WFDMA_EXT_CSR on mt7915.
+ */
+#define MT6893_WFDMA_EXT_CSR_BASE		0x0027000
+#define MT6893_WFDMA_EXT_CSR(ofs)		(MT6893_WFDMA_EXT_CSR_BASE + (ofs))
+
+#define MT6893_INT_SOURCE_CSR		MT6893_WFDMA_EXT_CSR(0x010)
+#define MT6893_INT_MASK_CSR			MT6893_WFDMA_EXT_CSR(0x014)
+
+#define MT6893_INT_RX_DONE_MCU		BIT(0)	/* WFDMA1 RX ring 0 */
+#define MT6893_INT_TX_DONE_FWDL		BIT(26)	/* WFDMA1 TX ring 16 */
+#define MT6893_INT_TX_DONE_MCU_WM		BIT(27)	/* WFDMA1 TX ring 17 */
+#define MT6893_INT_MCU_CMD			BIT(29)
+
+#define MT6893_INT_TX_DONE_MCU		(MT6893_INT_TX_DONE_FWDL |		\
+					 MT6893_INT_TX_DONE_MCU_WM)
+
+/* WFDMA0 bits are shifted by 16 in the aggregate register. */
+#define MT6893_INT_TX_DONE_BAND0	BIT(4)	/* WFDMA1 TX ring 0 */
+#define MT6893_INT_RX_DONE_DATA0	BIT(16)	/* WFDMA0 RX ring 0 */
+#define MT6893_INT_RX_DONE_DATA1	BIT(17)	/* WFDMA0 RX ring 1 */
+#define MT6893_INT_RX_DONE_TXFREE	BIT(18)	/* WFDMA0 RX ring 2 */
+#define MT6893_INT_RX_DONE_WFDMA0	GENMASK(19, 16)
+#define MT6893_INT_RX_DONE_WFDMA0_SHIFT	16
+
+#define MT6893_INT_RX_DONE_ALL		(MT6893_INT_RX_DONE_MCU |	\
+					 MT6893_INT_RX_DONE_DATA0 |	\
+					 MT6893_INT_RX_DONE_TXFREE)
+#define MT6893_INT_TX_DONE_ALL		(MT6893_INT_TX_DONE_MCU |	\
+					 MT6893_INT_TX_DONE_BAND0)
+
+#define MT6893_WFDMA_AXI_R2A_CTRL0	0x0027500
+#define MT6893_WFDMA_AXI_BID_CHK_BYP	BIT(11)
+
+/*
+ * Interrupt priority selection, meant for PCIe MSI. The vendor driver sets it
+ * on this SoC as well ("force writeback clear int_stat"); values kept as is.
+ */
+#define MT6893_WFDMA_INT_RX_PRI_SEL		0x0298
+#define MT6893_WFDMA_INT_TX_PRI_SEL		0x029c
+#define MT6893_WFDMA_INT_RX_PRI_SEL_VAL	0x0000000f
+#define MT6893_WFDMA_INT_TX_PRI_SEL_VAL	0x000f00ff
+
+#endif /* __MT6893_REGS_H */

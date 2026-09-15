@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+config MT6893_WMAC
+	tristate "MediaTek MT6893 (SoC) support"
+	select MT76_CONNAC_LIB
+	select MT7921_COMMON
+	depends on MAC80211
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	depends on OF
+	help
+	  This adds support for the WiFi of the MediaTek MT6893 (Dimensity
+	  1200) SoC, with an MT6635 radio.
+
+	  To compile this driver as a module, choose M here.
