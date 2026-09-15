@@ -80,6 +80,7 @@ static const struct mtk_gate infra_ao_clks[] = {
 	/* INFRA_AO0 */
 	GATE_INFRA_AO0(CLK_INFRA_AO_PMIC_TMR, "infra_ao_pmic_tmr", "pwrap_ulposc_sel", 0),
 	GATE_INFRA_AO0(CLK_INFRA_AO_PMIC_AP, "infra_ao_pmic_ap", "pwrap_ulposc_sel", 1),
+	GATE_INFRA_AO0(CLK_INFRA_AO_PMIC_CONN, "infra_ao_pmic_conn", "pwrap_ulposc_sel", 3),
 	GATE_INFRA_AO0(CLK_INFRA_AO_GCE, "infra_ao_gce", "axi_sel", 8),
 	GATE_INFRA_AO0(CLK_INFRA_AO_GCE2, "infra_ao_gce2", "axi_sel", 9),
 	GATE_INFRA_AO0(CLK_INFRA_AO_THERM, "infra_ao_therm", "axi_sel", 10),
