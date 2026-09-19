@@ -54,6 +54,7 @@ obj-$(CONFIG_COMMON_CLK_MT2712_VENCSYS) += clk-mt2712-venc.o
 obj-$(CONFIG_COMMON_CLK_MT6893) += clk-mt6893-apmixedsys.o
 obj-$(CONFIG_COMMON_CLK_MT6893) += clk-mt6893-topckgen.o
 obj-$(CONFIG_COMMON_CLK_MT6893) += clk-mt6893-infra_ao.o
+obj-$(CONFIG_COMMON_CLK_MT6893) += clk-mt6893-infra_nao.o
 obj-$(CONFIG_COMMON_CLK_MT6893) += clk-mt6893-imp_iic_wrap.o
 obj-$(CONFIG_COMMON_CLK_MT6893) += clk-mt6893-mdp.o
 obj-$(CONFIG_COMMON_CLK_MT6893) += clk-mt6893-mm.o
