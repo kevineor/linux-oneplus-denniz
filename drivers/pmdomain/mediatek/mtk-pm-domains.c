@@ -15,6 +15,7 @@
 #include <linux/pm_domain.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <linux/reset.h>
 #include <linux/soc/mediatek/infracfg.h>
 #include <linux/soc/mediatek/mtk_sip_svc.h>
 
@@ -72,6 +73,7 @@ struct scpsys_domain {
 	int num_subsys_clks;
 	struct clk_bulk_data *subsys_clks;
 	struct regulator *supply;
+	struct reset_control *rstc;
 };
 
 struct scpsys {
@@ -727,6 +729,17 @@ static int scpsys_power_on(struct generic_pm_domain *genpd)
 	}
 
 	/*
+	 * Some subsystems keep their bus protection acknowledge asserted while
+	 * held in reset.
+	 */
+	ret = reset_control_deassert(pd->rstc);
+	if (ret) {
+		dev_err(scpsys->dev, "%s: failed to deassert reset: %d\n",
+			genpd->name, ret);
+		goto err_pwr_ack;
+	}
+
+	/*
 	 * In MT8189 mminfra power domain, the bus protect policy separates
 	 * into two parts, one is set before subsys clocks enabled, and another
 	 * need to enable after subsys clocks enable.
@@ -784,6 +797,7 @@ err_disable_subsys_clks:
 		clk_bulk_disable_unprepare(pd->num_subsys_clks,
 					   pd->subsys_clks);
 err_pwr_ack:
+	reset_control_assert(pd->rstc);
 	clk_bulk_disable_unprepare(pd->num_clks, pd->clks);
 err_reg:
 	scpsys_regulator_disable(pd->supply);
@@ -794,6 +808,14 @@ static int scpsys_power_off_internal(struct scpsys_domain *pd)
 {
 	struct scpsys *scpsys = pd->scpsys;
 	int ret;
+
+	/* Bus protection only settles once the subsystem is held in reset. */
+	ret = reset_control_assert(pd->rstc);
+	if (ret < 0) {
+		dev_err(scpsys->dev, "%s: failed to assert reset: %d\n",
+			pd->genpd.name, ret);
+		return ret;
+	}
 
 	ret = scpsys_bus_protect_enable(pd, 0);
 	if (ret < 0) {
@@ -978,11 +1000,18 @@ generic_pm_domain *scpsys_add_one_domain(struct scpsys *scpsys, struct device_no
 		pd->subsys_clks[i].clk = clk;
 	}
 
+	pd->rstc = of_reset_control_get_optional_exclusive(node, NULL);
+	if (IS_ERR(pd->rstc)) {
+		ret = PTR_ERR(pd->rstc);
+		dev_err_probe(scpsys->dev, ret, "%pOF: failed to get reset\n", node);
+		goto err_put_subsys_clocks;
+	}
+
 	if (scpsys->domains[id]) {
 		ret = -EINVAL;
 		dev_err(scpsys->dev,
 			"power domain with id %d already exists, check your device-tree\n", id);
-		goto err_put_subsys_clocks;
+		goto err_put_reset;
 	}
 
 	if (pd->data && pd->data->name)
@@ -1044,6 +1073,8 @@ generic_pm_domain *scpsys_add_one_domain(struct scpsys *scpsys, struct device_no
 
 	return scpsys->pd_data.domains[id];
 
+err_put_reset:
+	reset_control_put(pd->rstc);
 err_put_subsys_clocks:
 	clk_bulk_put(pd->num_subsys_clks, pd->subsys_clks);
 err_put_clocks:
@@ -1131,6 +1162,7 @@ static void scpsys_remove_one_domain(struct scpsys_domain *pd)
 
 	clk_bulk_put(pd->num_clks, pd->clks);
 	clk_bulk_put(pd->num_subsys_clks, pd->subsys_clks);
+	reset_control_put(pd->rstc);
 }
 
 static void scpsys_domain_cleanup(struct scpsys *scpsys, u8 *domains_idx, u8 num_probed)
