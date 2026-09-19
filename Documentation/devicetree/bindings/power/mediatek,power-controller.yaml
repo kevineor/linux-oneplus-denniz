@@ -136,6 +136,12 @@ $defs:
       domain-supply:
         description: domain regulator supply.
 
+      resets:
+        description: |
+          Reset of the subsystem powered by this domain, deasserted before the
+          bus protections are released and asserted before they are set again.
+        maxItems: 1
+
       mediatek,infracfg:
         $ref: /schemas/types.yaml#/definitions/phandle
         description: phandle to the device containing the INFRACFG register range.
