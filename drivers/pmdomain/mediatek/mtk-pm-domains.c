@@ -720,8 +720,11 @@ static int scpsys_power_on(struct generic_pm_domain *genpd)
 	else
 		ret = scpsys_ctl_pwrseq_on(pd);
 
-	if (ret)
+	if (ret) {
+		dev_err(scpsys->dev, "%s: failed to run power-on sequence: %d\n",
+			genpd->name, ret);
 		goto err_pwr_ack;
+	}
 
 	/*
 	 * In MT8189 mminfra power domain, the bus protect policy separates
@@ -729,8 +732,11 @@ static int scpsys_power_on(struct generic_pm_domain *genpd)
 	 * need to enable after subsys clocks enable.
 	 */
 	ret = scpsys_bus_protect_disable(pd, BUS_PROT_IGNORE_SUBCLK);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_err(scpsys->dev, "%s: failed to release subsys bus protection: %d\n",
+			genpd->name, ret);
 		goto err_pwr_ack;
+	}
 
 	/*
 	 * In few Mediatek platforms(e.g. MT6779), the bus protect policy is
@@ -752,8 +758,11 @@ static int scpsys_power_on(struct generic_pm_domain *genpd)
 	}
 
 	ret = scpsys_bus_protect_disable(pd, 0);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_err(scpsys->dev, "%s: failed to release bus protection: %d\n",
+			genpd->name, ret);
 		goto err_disable_sram;
+	}
 
 	if (MTK_SCPD_CAPS(pd, MTK_SCPD_STRICT_BUS_PROTECTION)) {
 		ret = clk_bulk_prepare_enable(pd->num_subsys_clks,
@@ -787,8 +796,11 @@ static int scpsys_power_off_internal(struct scpsys_domain *pd)
 	int ret;
 
 	ret = scpsys_bus_protect_enable(pd, 0);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_err(scpsys->dev, "%s: failed to set bus protection: %d\n",
+			pd->genpd.name, ret);
 		return ret;
+	}
 
 	if (MTK_SCPD_CAPS(pd, MTK_SCPD_MODEM_SECURE_PWRSEQ)) {
 		ret = scpsys_modem_sec_power_on(false);
@@ -796,8 +808,11 @@ static int scpsys_power_off_internal(struct scpsys_domain *pd)
 			return ret;
 	} else if (!MTK_SCPD_CAPS(pd, MTK_SCPD_SIMPLE_PWRSEQ)) {
 		ret = scpsys_sram_disable(pd);
-		if (ret < 0)
+		if (ret < 0) {
+			dev_err(scpsys->dev, "%s: failed to disable sram: %d\n",
+				pd->genpd.name, ret);
 			return ret;
+		}
 	}
 
 	if (pd->data->ext_buck_iso_offs && MTK_SCPD_CAPS(pd, MTK_SCPD_EXT_BUCK_ISO))
@@ -807,8 +822,11 @@ static int scpsys_power_off_internal(struct scpsys_domain *pd)
 	clk_bulk_disable_unprepare(pd->num_subsys_clks, pd->subsys_clks);
 
 	ret = scpsys_bus_protect_enable(pd, BUS_PROT_IGNORE_SUBCLK);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_err(scpsys->dev, "%s: failed to set subsys bus protection: %d\n",
+			pd->genpd.name, ret);
 		return ret;
+	}
 
 	if (MTK_SCPD_CAPS(pd, MTK_SCPD_MODEM_PWRSEQ))
 		ret = scpsys_modem_pwrseq_off(pd);
@@ -820,6 +838,9 @@ static int scpsys_power_off_internal(struct scpsys_domain *pd)
 	if (ret < 0) {
 		/* Re-enable clocks so that next power off doesn't break the refcount */
 		int r = clk_bulk_prepare_enable(pd->num_subsys_clks, pd->subsys_clks);
+
+		dev_err(scpsys->dev, "%s: failed to run power-off sequence: %d\n",
+			pd->genpd.name, ret);
 
 		if (r)
 			dev_warn(scpsys->dev, "Could not re-enable clocks: %d\n", r);
