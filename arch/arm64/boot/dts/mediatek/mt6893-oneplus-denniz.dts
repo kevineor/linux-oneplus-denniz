@@ -9,6 +9,7 @@
 
 #include "mt6893.dtsi"
 #include "mt6359.dtsi"
+#include "mt6893-pinfunc.h"
 
 / {
 	model = "OnePlus Nord 2 5G";
@@ -47,6 +48,13 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
+
+		consys_emi: consys-reserve-memory {
+			no-map;
+			size = <0 0x450000>;
+			alignment = <0 0x100000>;
+			alloc-ranges = <0 0x50000000 0 0x40000000>;
+		};
 	};
 
 	vusb33: regulator-vusb33 {
@@ -137,4 +145,63 @@
 
 &mfg0 {
 	domain-supply = <&mt6359_vgpu11_buck_reg>;
+};
+
+&pio {
+	/* Interface to the MT6635 A-die, from consys_set_if_pinmux_mt6893(). */
+	conn_pins: conn-pins {
+		pins-bus {
+			pinmux = <PINMUX_GPIO174__FUNC_CONN_HRST_B>,
+				 <PINMUX_GPIO175__FUNC_CONN_WB_PTA>,
+				 <PINMUX_GPIO178__FUNC_CONN_WF_CTRL0>,
+				 <PINMUX_GPIO179__FUNC_CONN_WF_CTRL1>,
+				 <PINMUX_GPIO180__FUNC_CONN_WF_CTRL2>,
+				 <PINMUX_GPIO181__FUNC_CONN_WF_CTRL3>,
+				 <PINMUX_GPIO182__FUNC_CONN_WF_CTRL4>;
+			drive-strength = <2>;
+		};
+
+		pins-clk {
+			pinmux = <PINMUX_GPIO172__FUNC_CONN_TOP_CLK>,
+				 <PINMUX_GPIO176__FUNC_CONN_BT_CLK>;
+			drive-strength = <4>;
+		};
+
+		pins-data {
+			pinmux = <PINMUX_GPIO173__FUNC_CONN_TOP_DATA>,
+				 <PINMUX_GPIO177__FUNC_CONN_BT_DATA>;
+			drive-strength = <4>;
+			bias-pull-up;
+		};
+	};
+
+	/* CONN_WF_CTRL2 driven high while the A-die leaves reset. */
+	conn_strap_pins: conn-strap-pins {
+		pins-strap {
+			pinmux = <PINMUX_GPIO180__FUNC_GPIO180>;
+			output-high;
+		};
+	};
+};
+
+&mt6359_vcn33_1_ldo_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+};
+
+&mt6359_vcn33_2_ldo_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+};
+
+&wifi {
+	memory-region = <&consys_emi>;
+	pinctrl-names = "default", "strap";
+	pinctrl-0 = <&conn_pins>;
+	pinctrl-1 = <&conn_strap_pins>;
+	vcn18-supply = <&mt6359_vcn18_ldo_reg>;
+	vcn13-supply = <&mt6359_vcn13_ldo_reg>;
+	vcn33-1-supply = <&mt6359_vcn33_1_ldo_reg>;
+	vcn33-2-supply = <&mt6359_vcn33_2_ldo_reg>;
+	status = "okay";
 };
