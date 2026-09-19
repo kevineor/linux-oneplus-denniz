@@ -12,6 +12,7 @@
 #include <dt-bindings/memory/mediatek,mt6893-memory-port.h>
 #include <dt-bindings/phy/phy.h>
 #include <dt-bindings/power/mediatek,mt6893-power.h>
+#include <dt-bindings/reset/mt8192-resets.h>
 #include <dt-bindings/thermal/thermal.h>
 #include <dt-bindings/thermal/mediatek,lvts-thermal.h>
 #include <dt-bindings/pinctrl/mt65xx.h>
@@ -533,15 +534,16 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				#power-domain-cells = <1>;
-/*
-				power-domain@MT6893_POWER_DOMAIN_CONN {
+				conn: power-domain@MT6893_POWER_DOMAIN_CONN {
 					reg = <MT6893_POWER_DOMAIN_CONN>;
-					clocks = <&infracfg CLK_INFRA_PMIC_CONN>;
-					clock-names = "conn";
+					clocks = <&infracfg CLK_INFRA_AO_PMIC_CONN>,
+						 <&infracfg_nao CLK_INFRA_NAO_AP2CONN_HOST>;
+					clock-names = "conn", "ap2conn";
+					resets = <&watchdog MT8192_TOPRGU_CONN_SW_RST>;
 					mediatek,infracfg = <&infracfg>;
 					#power-domain-cells = <0>;
 				};
-*/
+
 				mfg0: power-domain@MT6893_POWER_DOMAIN_MFG0 {
 					reg = <MT6893_POWER_DOMAIN_MFG0>;
 					#address-cells = <1>;
@@ -1205,6 +1207,12 @@
 			interrupts = <GIC_SPI 430 IRQ_TYPE_LEVEL_HIGH 0>;
 			max-linkrate-mhz = <8100>;
 			status = "disabled";
+		};
+
+		infracfg_nao: syscon@1020e000 {
+			compatible = "mediatek,mt6893-infracfg-nao", "syscon";
+			reg = <0 0x1020e000 0 0x1000>;
+			#clock-cells = <1>;
 		};
 	};
 };
