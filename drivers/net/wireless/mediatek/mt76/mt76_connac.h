@@ -212,6 +212,11 @@ static inline bool is_mt7902(struct mt76_dev *dev)
 	return mt76_chip(dev) == 0x7902;
 }
 
+static inline bool is_mt6893(struct mt76_dev *dev)
+{
+	return mt76_chip(dev) == 0x6893;
+}
+
 static inline bool is_mt7922(struct mt76_dev *dev)
 {
 	return mt76_chip(dev) == 0x7922;
@@ -299,6 +304,9 @@ static inline bool is_connac_v1(struct mt76_dev *dev)
 
 static inline bool is_mt76_fw_txp(struct mt76_dev *dev)
 {
+	if (is_mt6893(dev))
+		return false;
+
 	switch (mt76_chip(dev)) {
 	case 0x7961:
 	case 0x7920:
