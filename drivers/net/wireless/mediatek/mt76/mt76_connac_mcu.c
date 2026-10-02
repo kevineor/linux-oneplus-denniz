@@ -120,6 +120,68 @@ int mt76_connac_cb_mcu_init_download(struct mt76_dev *dev, u32 len)
 }
 EXPORT_SYMBOL_GPL(mt76_connac_cb_mcu_init_download);
 
+/*
+ * Legacy CMD_SET_DOMAIN_INFO (MT6893): up to six sub-bands of contiguous
+ * channels instead of a channel list. The firmware stops taking commands
+ * shortly after receiving the list form.
+ */
+static int mt76_connac_mcu_set_channel_domain_v1(struct mt76_phy *phy)
+{
+	struct {
+		__be16 country;
+		__le16 passive_scan;
+		struct {
+			u8 reg_class;
+			u8 band;	/* 1: 2.4 GHz, 2: 5 GHz */
+			u8 span;	/* 1: 5 MHz, 4: 20 MHz */
+			u8 first;
+			u8 num;
+			u8 rsv[3];
+		} __packed sub[6];
+		u8 bw_2g;
+		u8 bw_5g;
+		u8 rsv[2];
+	} __packed req = {
+		.country = cpu_to_be16(phy->dev->alpha2[0] << 8 |
+				       phy->dev->alpha2[1]),
+		.bw_2g = 0,	/* 20 and 40 MHz */
+		.bw_5g = 0,
+	};
+	struct ieee80211_supported_band *sbands[] = {
+		&phy->sband_2g.sband, &phy->sband_5g.sband,
+	};
+	int b, i, n = 0;
+
+	for (b = 0; b < ARRAY_SIZE(sbands); b++) {
+		u8 span = b ? 4 : 1, step = b ? 4 : 1;
+		int prev = -1;
+
+		for (i = 0; i < sbands[b]->n_channels; i++) {
+			struct ieee80211_channel *chan = &sbands[b]->channels[i];
+
+			if (chan->flags & IEEE80211_CHAN_DISABLED)
+				continue;
+
+			if (prev >= 0 && chan->hw_value == prev + step &&
+			    req.sub[n - 1].band == b + 1) {
+				req.sub[n - 1].num++;
+			} else {
+				if (n == ARRAY_SIZE(req.sub))
+					break;
+				req.sub[n].band = b + 1;
+				req.sub[n].span = span;
+				req.sub[n].first = chan->hw_value;
+				req.sub[n].num = 1;
+				n++;
+			}
+			prev = chan->hw_value;
+		}
+	}
+
+	return mt76_mcu_send_msg(phy->dev, MCU_CE_CMD(SET_CHAN_DOMAIN), &req,
+				 sizeof(req), false);
+}
+
 int mt76_connac_mcu_set_channel_domain(struct mt76_phy *phy)
 {
 	int len, i, n_max_channels, n_2ch = 0, n_5ch = 0, n_6ch = 0;
@@ -151,6 +213,9 @@ int mt76_connac_mcu_set_channel_domain(struct mt76_phy *phy)
 	struct mt76_dev *dev = phy->dev;
 	struct ieee80211_channel *chan;
 	struct sk_buff *skb;
+
+	if (is_mt6893(dev))
+		return mt76_connac_mcu_set_channel_domain_v1(phy);
 
 	n_max_channels = phy->sband_2g.sband.n_channels +
 			 phy->sband_5g.sband.n_channels +
