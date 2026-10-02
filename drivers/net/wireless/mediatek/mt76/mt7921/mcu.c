@@ -32,7 +32,9 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
 		return -EAGAIN;
 
 	if (cmd == MCU_CMD(PATCH_SEM_CONTROL) ||
-	    cmd == MCU_CMD(PATCH_FINISH_REQ)) {
+	    cmd == MCU_CMD(PATCH_FINISH_REQ) ||
+	    cmd == MCU_CMD(DYN_MEM_MAP_PATCH_FINISH) ||
+	    cmd == MCU_CMD(DYN_MEM_MAP_FW_FINISH)) {
 		skb_pull(skb, sizeof(*rxd) - 4);
 		ret = *skb->data;
 	} else if (cmd == MCU_EXT_CMD(THERMAL_CTRL)) {
@@ -627,6 +629,9 @@ static int mt7921_mcu_get_nic_capability(struct mt792x_phy *mphy)
 				mt7921_mcu_parse_tx_resource(phy->dev,
 							     skb);
 			break;
+		case MT_NIC_CAP_HOST_STATUS_EMI_OFFSET:
+			mphy->dev->emi_host_status = le32_to_cpu(*(__le32 *)skb->data);
+			break;
 		case MT_NIC_CAP_CHIP_CAP:
 			memcpy(&mphy->chip_cap, (void *)skb->data, sizeof(u64));
 			break;
@@ -683,6 +688,10 @@ int mt7921_mcu_radio_led_ctrl(struct mt792x_dev *dev, u8 value)
 	} __packed req = {
 		.ctrlid = value,
 	};
+
+	/* These LED values hang the MT6893 firmware. */
+	if (is_mt6893(&dev->mt76))
+		return 0;
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_EXT_CMD(ID_RADIO_ON_OFF_CTRL),
 				&req, sizeof(req), false);
@@ -1474,6 +1483,30 @@ int mt7921_mcu_wf_rf_pin_ctrl(struct mt792x_phy *phy, u8 action)
 				 sizeof(req), action ? true : false);
 }
 
+/*
+ * Legacy CMD_RX_PACKET_FILTER (MT6893): the first word is the filter itself,
+ * reserved on mt7921. Zero drops everything, scan responses included.
+ */
+static int mt7921_mcu_set_rxfilter_legacy(struct mt792x_dev *dev, u32 fif)
+{
+	struct {
+		__le32 filter;
+		u8 rsv[64];
+	} __packed req = {};
+	u32 filter = BIT(0) |	/* directed */
+		     BIT(1) |	/* multicast */
+		     BIT(2) |	/* all multicast */
+		     BIT(3);	/* broadcast */
+
+	if (fif & MT7921_FILTER_OTHER_BSS)
+		filter |= BIT(5);	/* promiscuous */
+
+	req.filter = cpu_to_le32(filter);
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(SET_RX_FILTER),
+				 &req, sizeof(req), false);
+}
+
 int mt7921_mcu_set_rxfilter(struct mt792x_dev *dev, u32 fif,
 			    u8 bit_op, u32 bit_map)
 {
@@ -1491,6 +1524,9 @@ int mt7921_mcu_set_rxfilter(struct mt792x_dev *dev, u32 fif,
 		.bit_map = cpu_to_le32(bit_map),
 		.bit_op = bit_op,
 	};
+
+	if (is_mt6893(&dev->mt76))
+		return mt7921_mcu_set_rxfilter_legacy(dev, fif);
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(SET_RX_FILTER),
 				 &data, sizeof(data), false);

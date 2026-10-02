@@ -344,6 +344,9 @@ struct mt792x_dev {
 	struct ieee80211_vif *nan_vif;
 	const struct ieee80211_iface_combination *iface_combinations;
 	int n_iface_combinations;
+
+	/* MT6893: shared memory offset of the host status word */
+	u32 emi_host_status;
 };
 
 static inline struct mt792x_bss_conf *

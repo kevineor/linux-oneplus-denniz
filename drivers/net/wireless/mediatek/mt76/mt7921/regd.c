@@ -22,7 +22,7 @@ static struct ieee80211_regdomain mt7921_regd_ww = {
 bool mt7921_regd_clc_supported(struct mt792x_dev *dev)
 {
 	if (mt7921_disable_clc ||
-	    mt76_is_usb(&dev->mt76))
+	    mt76_is_usb(&dev->mt76) || is_mt6893(&dev->mt76))
 		return false;
 
 	return true;

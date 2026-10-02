@@ -229,17 +229,25 @@ int __mt7921_start(struct mt792x_phy *phy)
 	struct mt76_phy *mphy = phy->mt76;
 	int err;
 
-	err = mt76_connac_mcu_set_mac_enable(mphy->dev, 0, true, false);
-	if (err)
-		return err;
+	/*
+	 * The MT6893 firmware has neither MAC_INIT_CTRL nor SET_RX_PATH: it
+	 * enables its MAC by itself and gets the channel from the BSS.
+	 */
+	if (!is_mt6893(mphy->dev)) {
+		err = mt76_connac_mcu_set_mac_enable(mphy->dev, 0, true, false);
+		if (err)
+			return err;
+	}
 
 	err = mt76_connac_mcu_set_channel_domain(mphy);
 	if (err)
 		return err;
 
-	err = mt7921_mcu_set_chan_info(phy, MCU_EXT_CMD(SET_RX_PATH));
-	if (err)
-		return err;
+	if (!is_mt6893(mphy->dev)) {
+		err = mt7921_mcu_set_chan_info(phy, MCU_EXT_CMD(SET_RX_PATH));
+		if (err)
+			return err;
+	}
 
 	err = mt7921_set_tx_sar_pwr(mphy->hw, NULL);
 	if (err)
@@ -521,6 +529,9 @@ static int mt7921_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 	    !(key->flags & IEEE80211_KEY_FLAG_PAIRWISE))
 		return -EOPNOTSUPP;
 
+	if (is_mt6893(&dev->mt76))
+		return -EOPNOTSUPP;
+
 	/* fall back to sw encryption for unsupported ciphers */
 	switch (key->cipher) {
 	case WLAN_CIPHER_SUITE_AES_CMAC:
@@ -670,7 +681,6 @@ static void mt7921_configure_filter(struct ieee80211_hw *hw,
 {
 #define MT7921_FILTER_FCSFAIL    BIT(2)
 #define MT7921_FILTER_CONTROL    BIT(5)
-#define MT7921_FILTER_OTHER_BSS  BIT(6)
 #define MT7921_FILTER_ENABLE     BIT(31)
 
 	struct mt792x_dev *dev = mt792x_hw_dev(hw);
@@ -1295,6 +1305,10 @@ int mt7921_set_tx_sar_pwr(struct ieee80211_hw *hw,
 			return err;
 	}
 	mt792x_init_acpi_sar_power(mt792x_hw_phy(hw), !sar);
+
+	/* The MT6893 firmware has no SET_RATE_TX_POWER. */
+	if (is_mt6893(mphy->dev))
+		return 0;
 
 	return mt76_connac_mcu_set_rate_txpower(mphy);
 }

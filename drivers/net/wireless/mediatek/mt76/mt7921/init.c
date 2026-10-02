@@ -97,9 +97,16 @@ static int __mt7921_init_hardware(struct mt792x_dev *dev)
 	if (ret)
 		goto out;
 
-	ret = mt7921_mcu_set_eeprom(dev);
-	if (ret)
-		goto out;
+	/*
+	 * The MT6893 calibration and power tables come from the NVRAM, sent
+	 * by mcu_init. Selecting the efuse afterwards replaces them with a
+	 * flat 10 dBm; the vendor driver only does it from its test agent.
+	 */
+	if (!is_mt6893(&dev->mt76)) {
+		ret = mt7921_mcu_set_eeprom(dev);
+		if (ret)
+			goto out;
+	}
 
 	ret = mt7921_mac_init(dev);
 out:
@@ -208,7 +215,7 @@ int mt7921_register_device(struct mt792x_dev *dev)
 	dev->pm.stats.last_doze_event = jiffies;
 
 	if (!mt76_is_usb(&dev->mt76) &&
-	    !is_mt7902(&dev->mt76)) {
+	    !is_mt7902(&dev->mt76) && !is_mt6893(&dev->mt76)) {
 		dev->pm.enable_user = true;
 		dev->pm.enable = true;
 		dev->pm.ds_enable_user = true;
