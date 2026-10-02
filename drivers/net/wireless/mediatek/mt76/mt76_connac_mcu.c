@@ -2803,6 +2803,38 @@ void mt76_connac_mcu_set_suspend_iter(void *priv, u8 *mac,
 EXPORT_SYMBOL_GPL(mt76_connac_mcu_set_suspend_iter);
 #endif /* CONFIG_PM */
 
+/*
+ * Legacy CMD_ID_BSS_ACTIVATE_CTRL (MT6893), in place of DEV_INFO_UPDATE. The
+ * broadcast WTBL entry must be below 32.
+ */
+int mt76_connac_mcu_legacy_bss_activate(struct mt76_phy *phy,
+					struct ieee80211_vif *vif,
+					struct mt76_vif_link *mvif,
+					u8 bmc_idx, bool enable)
+{
+	struct {
+		u8 bss_idx;
+		u8 active;
+		u8 network_type;
+		u8 omac_idx;
+		u8 bss_addr[ETH_ALEN];
+		u8 bmc_wlan_idx;
+		u8 rsv;
+	} __packed req = {
+		.bss_idx = mvif->idx,
+		.active = enable,
+		.network_type = vif->type == NL80211_IFTYPE_STATION ? 0 : 1,
+		.omac_idx = mvif->omac_idx,
+		.bmc_wlan_idx = bmc_idx,
+	};
+
+	memcpy(req.bss_addr, vif->addr, ETH_ALEN);
+
+	return mt76_mcu_send_msg(phy->dev, MCU_CE_CMD(BSS_ACTIVATE_CTRL),
+				 &req, sizeof(req), false);
+}
+EXPORT_SYMBOL_GPL(mt76_connac_mcu_legacy_bss_activate);
+
 u32 mt76_connac_mcu_reg_rr(struct mt76_dev *dev, u32 offset)
 {
 	struct {

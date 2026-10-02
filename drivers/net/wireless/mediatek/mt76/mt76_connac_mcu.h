@@ -1386,6 +1386,7 @@ enum {
 	MCU_CE_CMD_SET_PS_PROFILE = 0x05,
 	MCU_CE_CMD_SET_RX_FILTER = 0x0a,
 	MCU_CE_CMD_SET_CHAN_DOMAIN = 0x0f,
+	MCU_CE_CMD_BSS_ACTIVATE_CTRL = 0x11,
 	MCU_CE_CMD_SET_BSS_CONNECTED = 0x16,
 	MCU_CE_CMD_SET_BSS_ABORT = 0x17,
 	MCU_CE_CMD_CANCEL_HW_SCAN = 0x1b,
@@ -2109,6 +2110,10 @@ int mt76_connac_mcu_set_rate_txpower(struct mt76_phy *phy);
 int mt76_connac_mcu_set_p2p_oppps(struct ieee80211_hw *hw,
 				  struct ieee80211_vif *vif);
 u32 mt76_connac_mcu_reg_rr(struct mt76_dev *dev, u32 offset);
+int mt76_connac_mcu_legacy_bss_activate(struct mt76_phy *phy,
+					struct ieee80211_vif *vif,
+					struct mt76_vif_link *mvif,
+					u8 bmc_idx, bool enable);
 void mt76_connac_mcu_reg_wr(struct mt76_dev *dev, u32 offset, u32 val);
 
 const struct ieee80211_sta_he_cap *
