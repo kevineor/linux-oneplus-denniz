@@ -283,6 +283,8 @@ struct mt792x_hif_ops {
 	int (*mcu_init)(struct mt792x_dev *dev);
 	int (*drv_own)(struct mt792x_dev *dev);
 	int (*fw_own)(struct mt792x_dev *dev);
+	/* optional, for buses with their own firmware loading (MT6893) */
+	int (*load_firmware)(struct mt792x_dev *dev);
 };
 
 struct mt792x_pcie_reg {

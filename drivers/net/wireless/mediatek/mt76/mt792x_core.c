@@ -1091,6 +1091,9 @@ int mt792x_load_firmware(struct mt792x_dev *dev)
 {
 	int ret;
 
+	if (dev->hif_ops->load_firmware)
+		return dev->hif_ops->load_firmware(dev);
+
 	mt76_connac_mcu_restart(&dev->mt76);
 
 	if (!mt76_poll_msec(dev, MT_CONN_ON_MISC, MT_TOP_MISC_FW_STATE,
