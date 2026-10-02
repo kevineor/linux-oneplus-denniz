@@ -50,6 +50,12 @@
 #define MT6893_NVRAM_MAC_OFFSET		4
 #define MT6893_NVRAM_FRAG_LEN		1500
 
+/* Firmware log ring in shared memory, in the connsyslog layout. */
+#define MT6893_FWLOG_OFFSET		0x24f000
+#define MT6893_FWLOG_SIZE		(192 * 1024)
+#define MT6893_FWLOG_HDR		64
+#define MT6893_FWLOG_RING		0x20000
+
 #define MT6893_FUNC_INIT_DONE		BIT(0)
 #define MT6893_FUNC_WM_DONE		BIT(1)
 #define MT6893_FUNC_READY		(MT6893_FUNC_INIT_DONE | \
@@ -132,5 +138,6 @@ void mt6893_dma_disable(struct mt6893_dev *dev);
 int mt6893_wmac_enable(struct mt6893_dev *dev);
 void mt6893_wmac_disable(struct mt6893_dev *dev);
 int mt6893_wmac_drv_own(struct mt6893_dev *dev);
+void mt6893_fwlog_debugfs(struct mt6893_dev *dev);
 
 #endif /* __MT6893_H */

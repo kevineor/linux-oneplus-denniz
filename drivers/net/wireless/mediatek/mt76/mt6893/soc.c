@@ -531,6 +531,20 @@ static int mt6893_wmac_load_fw(struct mt6893_dev *dev)
 	if (!ret)
 		ret = mt6893_wmac_load_emi(dev, emi, MT6893_FW_WIFI);
 
+	/* connlog_emi_init(): the firmware only logs once the header is set. */
+	if (!ret) {
+		void __iomem *log = emi + MT6893_FWLOG_OFFSET;
+
+		memset_io(log, 0xff, MT6893_FWLOG_SIZE);
+		writel(1, log + 32);
+		memset_io(log + MT6893_FWLOG_HDR, 0, 32);
+		writel(MT6893_FWLOG_HDR, log);
+		writel(MT6893_FWLOG_RING, log + 4);
+		memcpy_toio(log + MT6893_FWLOG_HDR + 32 + MT6893_FWLOG_RING,
+			    "FWLOGENDFWLOGENDFWLOGENDFWLOGEND", 32);
+		memcpy_toio(log + 56, "EMIFWLOG", 8);
+	}
+
 	iounmap(emi);
 
 	return ret;
@@ -803,6 +817,8 @@ static int mt6893_wmac_probe(struct platform_device *pdev)
 	ret = mt6893_wmac_enable(dev);
 	if (ret)
 		goto free_device;
+
+	mt6893_fwlog_debugfs(dev);
 
 	return 0;
 

@@ -10,7 +10,9 @@
  * ROM go through the rings, in the regular connac2 MCU message format.
  */
 
+#include <linux/debugfs.h>
 #include <linux/firmware.h>
+#include <linux/vmalloc.h>
 #include <linux/io.h>
 #include <linux/unaligned.h>
 
@@ -542,6 +544,242 @@ int mt6893_mcu_load_firmware(struct mt792x_dev *mdev)
 	return 0;
 }
 
+/* connsysFwLogControl(): firmware log to shared memory. */
+static int mt6893_mcu_enable_fwlog(struct mt6893_dev *dev)
+{
+	struct {
+		__le32 version;
+		__le32 type;
+		u8 n_item;
+		u8 rsv;
+		__le16 len;
+		struct {
+			u8 type;
+			u8 key_len;
+			u8 val_len;
+			u8 rsv;
+			char key[32];
+			char val[32];
+		} __packed item[4];
+	} __packed req = {
+		.type = cpu_to_le32(1),		/* write */
+		.n_item = 1,
+		.len = cpu_to_le16(sizeof(req.item[0])),
+		.item[0] = {
+			.type = 3,		/* string */
+			.key_len = 12,
+			.val_len = 1,
+			.key = "EnableDbgLog",
+			.val = "1",
+		},
+	};
+
+	struct {
+		__le32 version;
+		__le32 level;	/* 0: default, 1: more, 2: all */
+		u8 rsv[4];
+	} __packed level = {
+		.version = cpu_to_le32(1),
+		.level = cpu_to_le32(2),
+	};
+	int ret;
+
+	ret = mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(CUSTOMER_CFG), &req,
+				sizeof(req), false);
+	if (ret)
+		return ret;
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(LOG_UI_INFO), &level,
+				 sizeof(level), false);
+}
+
+static ssize_t mt6893_fwlog_read(struct file *file, char __user *buf,
+				 size_t count, loff_t *ppos)
+{
+	struct mt6893_dev *dev = file->private_data;
+	void __iomem *log;
+	ssize_t ret;
+	void *copy;
+
+	copy = vmalloc(MT6893_FWLOG_SIZE);
+	if (!copy)
+		return -ENOMEM;
+
+	log = ioremap(dev->emi_base + MT6893_FWLOG_OFFSET, MT6893_FWLOG_SIZE);
+	if (!log) {
+		vfree(copy);
+		return -ENOMEM;
+	}
+
+	memcpy_fromio(copy, log, MT6893_FWLOG_SIZE);
+	iounmap(log);
+
+	ret = simple_read_from_buffer(buf, count, ppos, copy,
+				      MT6893_FWLOG_SIZE);
+	vfree(copy);
+
+	return ret;
+}
+
+static const struct file_operations mt6893_fwlog_fops = {
+	.open = simple_open,
+	.read = mt6893_fwlog_read,
+	.llseek = default_llseek,
+};
+
+/*
+ * Per-rate TX power applied by the firmware, as wlanoidQueryTxPowerInfo():
+ * TX_POWER_SHOW_INFO, category 2. The response is dumped raw: one byte of
+ * SHOW_ALL_RATE_TXPOWER_INFO, three of padding, then
+ * aicFramePowerConfig[rate][band] in 0.5 dBm, CCK 1M first.
+ */
+static ssize_t mt6893_txpower_read(struct file *file, char __user *buf,
+				   size_t count, loff_t *ppos)
+{
+	struct mt6893_dev *dev = file->private_data;
+	struct {
+		u8 format;
+		u8 category;
+		u8 band_idx;
+		u8 rsv;
+	} __packed req = {
+		.format = 7,
+		.category = 2,
+	};
+	struct sk_buff *skb;
+	char *text;
+	ssize_t ret;
+	int i, len = 0;
+
+	ret = mt76_mcu_send_and_get_msg(&dev->mt76,
+					MCU_EXT_QUERY(TX_POWER_FEATURE_CTRL),
+					&req, sizeof(req), true, &skb);
+	if (ret)
+		return ret;
+
+	text = kmalloc(skb->len * 3 + 2, GFP_KERNEL);
+	if (!text) {
+		dev_kfree_skb(skb);
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < skb->len; i++)
+		len += scnprintf(text + len, 4, "%02x%c", skb->data[i],
+				 i % 16 == 15 ? '\n' : ' ');
+	text[len++] = '\n';
+	dev_kfree_skb(skb);
+
+	ret = simple_read_from_buffer(buf, count, ppos, text, len);
+	kfree(text);
+
+	return ret;
+}
+
+static const struct file_operations mt6893_txpower_fops = {
+	.open = simple_open,
+	.read = mt6893_txpower_read,
+	.llseek = default_llseek,
+};
+
+/*
+ * Raw MCU command: write "<ce|ext> <id> <query> <hex bytes...>", read back
+ * the response in hex.
+ */
+static u8 mt6893_mcu_resp[2048];
+static int mt6893_mcu_resp_len;
+
+static ssize_t mt6893_mcu_write(struct file *file, const char __user *ubuf,
+				size_t count, loff_t *ppos)
+{
+	struct mt6893_dev *dev = file->private_data;
+	char kind[4], *line, *p;
+	unsigned int id, query, v;
+	struct sk_buff *skb = NULL;
+	u8 *payload;
+	int n = 0, cmd, off, ret;
+
+	if (count > 4096)
+		return -EINVAL;
+
+	line = memdup_user_nul(ubuf, count);
+	if (IS_ERR(line))
+		return PTR_ERR(line);
+
+	payload = kzalloc(1024, GFP_KERNEL);
+	if (!payload) {
+		kfree(line);
+		return -ENOMEM;
+	}
+
+	if (sscanf(line, "%3s %x %u %n", kind, &id, &query, &off) < 3) {
+		ret = -EINVAL;
+		goto out;
+	}
+	for (p = line + off; n < 1024 && sscanf(p, "%x%n", &v, &off) == 1;
+	     p += off)
+		payload[n++] = v;
+
+	cmd = !strcmp(kind, "ext") ?
+		(FIELD_PREP(__MCU_CMD_FIELD_ID, MCU_CMD_EXT_CID) |
+		 FIELD_PREP(__MCU_CMD_FIELD_EXT_ID, id)) :
+		(__MCU_CMD_FIELD_CE | FIELD_PREP(__MCU_CMD_FIELD_ID, id));
+	if (query)
+		cmd |= __MCU_CMD_FIELD_QUERY;
+
+	mt6893_mcu_resp_len = 0;
+	ret = mt76_mcu_send_and_get_msg(&dev->mt76, cmd, payload, n, query,
+					query ? &skb : NULL);
+	if (!ret && skb) {
+		mt6893_mcu_resp_len = min_t(int, skb->len,
+					    sizeof(mt6893_mcu_resp));
+		memcpy(mt6893_mcu_resp, skb->data, mt6893_mcu_resp_len);
+		dev_kfree_skb(skb);
+	}
+out:
+	kfree(payload);
+	kfree(line);
+
+	return ret ? ret : count;
+}
+
+static ssize_t mt6893_mcu_read(struct file *file, char __user *buf,
+			       size_t count, loff_t *ppos)
+{
+	char *text;
+	int i, len = 0;
+	ssize_t ret;
+
+	text = kmalloc(mt6893_mcu_resp_len * 3 + 2, GFP_KERNEL);
+	if (!text)
+		return -ENOMEM;
+
+	for (i = 0; i < mt6893_mcu_resp_len; i++)
+		len += scnprintf(text + len, 4, "%02x%c", mt6893_mcu_resp[i],
+				 i % 16 == 15 ? '\n' : ' ');
+	text[len++] = '\n';
+
+	ret = simple_read_from_buffer(buf, count, ppos, text, len);
+	kfree(text);
+
+	return ret;
+}
+
+static const struct file_operations mt6893_mcu_fops = {
+	.open = simple_open,
+	.read = mt6893_mcu_read,
+	.write = mt6893_mcu_write,
+	.llseek = default_llseek,
+};
+
+void mt6893_fwlog_debugfs(struct mt6893_dev *dev)
+{
+	debugfs_create_file("mt6893_mcu", 0600, NULL, dev, &mt6893_mcu_fops);
+	debugfs_create_file("mt6893_fwlog", 0400, NULL, dev,
+			    &mt6893_fwlog_fops);
+	debugfs_create_file("mt6893_txpower", 0400, NULL, dev,
+			    &mt6893_txpower_fops);
+}
+
 /*
  * As mt7921e, without the ownership handshake. The calibration follows the
  * capabilities query, as in the vendor driver, and provides the MAC address.
@@ -593,6 +831,9 @@ int mt6893_mcu_init(struct mt792x_dev *mdev)
 		ret = mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(BASIC_CONFIG),
 					basic, sizeof(basic), false);
 	}
+
+	if (!ret)
+		ret = mt6893_mcu_enable_fwlog(dev);
 
 	mt76_queue_tx_cleanup(dev, dev->mt76.q_mcu[MT_MCUQ_FWDL], false);
 
