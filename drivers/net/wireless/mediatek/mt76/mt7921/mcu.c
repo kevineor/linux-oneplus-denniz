@@ -12,6 +12,462 @@
 #define MT_STA_BFER			BIT(0)
 #define MT_STA_BFEE			BIT(1)
 
+/*
+ * MT6893 legacy commands, in place of the unified BSS_INFO_UPDATE,
+ * STA_REC_UPDATE and ROC its firmware does not know. Layouts are those of the
+ * vendor gen4m driver built with 11ax; values follow what it sends in
+ * cnmStaSendUpdateCmd(), nicUpdateBssEx() and cnmChMngrRequestPrivilege().
+ */
+#define MT6893_PHY_HR_DSSS		BIT(0)
+#define MT6893_PHY_ERP			BIT(1)
+#define MT6893_PHY_OFDM			BIT(3)
+#define MT6893_PHY_HT			BIT(4)
+#define MT6893_PHY_VHT			BIT(5)
+#define MT6893_PHY_HE			BIT(6)
+
+/* ENUM_PHY_TYPE_INDEX */
+#define MT6893_PHY_IDX_HR_DSSS		0
+#define MT6893_PHY_IDX_ERP		1
+#define MT6893_PHY_IDX_OFDM		3
+
+/* STA_TYPE_LEGACY_AP */
+#define MT6893_STA_TYPE_LEGACY_AP	(BIT(0) | BIT(6))
+#define MT6893_STA_STATE_1		0
+#define MT6893_STA_STATE_3		2
+#define MT6893_BAND_AUTO		4	/* ENUM_BAND_AUTO */
+#define MT6893_WTBL_NONE		0xff	/* WTBL_RESERVED_ENTRY */
+#define MT6893_MEDIA_CONNECTED		0
+#define MT6893_MEDIA_DISCONNECTED	1
+#define MT6893_AUTH_OPEN		0
+#define MT6893_ENC_DISABLED		1
+#define MT6893_RTS_LEGACY		3
+
+/* CMD_UPDATE_STA_RECORD */
+struct mt6893_sta_rec {
+	u8 sta_idx;
+	u8 sta_type;
+	u8 mac[ETH_ALEN];
+	__le16 aid;
+	__le16 listen_interval;
+	u8 bss_idx;
+	u8 phy_type;
+	__le16 rate_set;
+	__le16 basic_rate_set;
+	u8 qos;
+	u8 uapsd;
+	u8 state;
+	u8 mcs_set;
+	u8 mcs32;
+	u8 version;
+	u8 rx_mcs_bitmask[10];
+	__le16 rx_highest;
+	__le32 tx_rate_info;
+	__le16 ht_cap;
+	__le16 ht_ext_cap;
+	__le32 txbf_cap;
+	u8 ampdu_param;
+	u8 asel_cap;
+	u8 rcpi;
+	u8 need_resp;
+	u8 uapsd_ac;
+	u8 uapsd_sp;
+	u8 wlan_idx;
+	u8 bmc_wlan_idx;
+	__le32 vht_cap;
+	__le16 vht_rx_mcs_map;
+	__le16 vht_rx_highest;
+	__le16 vht_tx_mcs_map;
+	__le16 vht_tx_highest;
+	u8 rts_policy;
+	u8 vht_op_mode;
+	u8 traffic_data_type;
+	u8 tx_gf;
+	u8 tx_sgi;
+	u8 tx_stbc;
+	__le16 hw_fixed_rate;
+	u8 tx_ampdu;
+	u8 rx_ampdu;
+	u8 rsv0[2];
+	__le32 fixed_phy_rate;
+	__le16 max_link_speed;
+	__le16 min_link_speed;
+	__le32 flags;
+	u8 tx_ba_size;
+	u8 rx_ba_size;
+	u8 rsv1[2];
+	u8 txbf[32];
+	u8 tx_amsdu_in_ampdu;
+	u8 rx_amsdu_in_ampdu;
+	u8 rsv2[2];
+	__le32 tx_max_amsdu_in_ampdu_len;
+	u8 he_mac_cap[6];
+	u8 he_phy_cap[11];
+	u8 rsv3[3];
+	__le16 he_rx_mcs_80;
+	__le16 he_tx_mcs_80;
+	__le16 he_rx_mcs_160;
+	__le16 he_tx_mcs_160;
+	__le16 he_rx_mcs_80p80;
+	__le16 he_tx_mcs_80p80;
+	__le16 he_6g_cap;
+	u8 rsv4[30];
+} __packed;
+
+static_assert(offsetof(struct mt6893_sta_rec, wlan_idx) == 54);
+static_assert(offsetof(struct mt6893_sta_rec, flags) == 88);
+static_assert(offsetof(struct mt6893_sta_rec, tx_amsdu_in_ampdu) == 128);
+static_assert(offsetof(struct mt6893_sta_rec, he_mac_cap) == 136);
+static_assert(offsetof(struct mt6893_sta_rec, he_rx_mcs_80) == 156);
+static_assert(sizeof(struct mt6893_sta_rec) == 200);
+
+/* CMD_SET_BSS_RLM_PARAM */
+struct mt6893_bss_rlm {
+	u8 bss_idx;
+	u8 band;
+	u8 primary_ch;
+	u8 sco;
+	u8 erp_protect;
+	u8 ht_protect;
+	u8 gf_mode;
+	u8 rifs_mode;
+	__le16 ht_op_info3;
+	__le16 ht_op_info2;
+	u8 ht_op_info1;
+	u8 short_preamble;
+	u8 short_slot;
+	u8 vht_width;
+	u8 vht_s1;
+	u8 vht_s2;
+	__le16 vht_basic_mcs;
+	u8 tx_nss;
+	u8 rx_nss;
+} __packed;
+
+/* CMD_SET_BSS_INFO */
+struct mt6893_bss_info {
+	u8 bss_idx;
+	u8 conn_state;
+	u8 op_mode;
+	u8 ssid_len;
+	u8 ssid[IEEE80211_MAX_SSID_LEN];
+	u8 bssid[ETH_ALEN];
+	u8 qbss;
+	u8 version;
+	__le16 rate_set;
+	__le16 basic_rate_set;
+	u8 ap_sta_idx;
+	u8 rsv0;
+	__le16 hw_fixed_rate;
+	u8 non_ht_basic_phy;
+	u8 auth_mode;
+	u8 enc_status;
+	u8 phy_type;
+	u8 wapi;
+	u8 ap_mode;
+	u8 bmc_wlan_idx;
+	u8 hidden_ssid;
+	u8 disconnect_threshold;
+	u8 iot_ap_act;
+	u8 rsv1[2];
+	__le32 private_data;
+	struct mt6893_bss_rlm rlm;
+	u8 dbdc_band;
+	u8 wmm_set;
+	u8 dbdc_action;
+	u8 nss;
+	u8 rsv2[2];
+	u8 he_op[3];
+	u8 bss_color;
+	__le16 he_basic_mcs;
+	u8 max_bssid_ind;
+	u8 mbssid_idx;
+	u8 rsv3[12];
+} __packed;
+
+static_assert(offsetof(struct mt6893_bss_info, rlm) == 68);
+static_assert(offsetof(struct mt6893_bss_info, dbdc_band) == 90);
+static_assert(offsetof(struct mt6893_bss_info, he_basic_mcs) == 100);
+static_assert(sizeof(struct mt6893_bss_info) == 116);
+
+/* mac80211 rate mask to the vendor rate set, in aucDataRate[] order. */
+static u16 mt6893_rate_set(struct ieee80211_supported_band *sband, u32 mask)
+{
+	static const u8 rates[] = {
+		2, 4, 11, 22, 44, 66, 12, 18, 24, 36, 48, 72, 96, 108,
+	};
+	unsigned long m = mask;
+	u16 set = 0;
+	int i, j;
+
+	for_each_set_bit(i, &m, sband->n_bitrates) {
+		int br = sband->bitrates[i].bitrate / 5;
+
+		for (j = 0; j < ARRAY_SIZE(rates); j++)
+			if (rates[j] == br)
+				set |= BIT(j);
+	}
+
+	return set;
+}
+
+static u8 mt6893_phy_type(struct ieee80211_sta *sta, enum nl80211_band band,
+			  u16 rate_set)
+{
+	u8 phy = 0;
+
+	if (band == NL80211_BAND_2GHZ) {
+		if (rate_set & GENMASK(3, 0))
+			phy |= MT6893_PHY_HR_DSSS;
+		if (rate_set & GENMASK(13, 6))
+			phy |= MT6893_PHY_ERP;
+	} else {
+		phy |= MT6893_PHY_OFDM;
+	}
+
+	if (sta->deflink.ht_cap.ht_supported)
+		phy |= MT6893_PHY_HT;
+	if (sta->deflink.vht_cap.vht_supported)
+		phy |= MT6893_PHY_VHT;
+	if (sta->deflink.he_cap.has_he)
+		phy |= MT6893_PHY_HE;
+
+	return phy;
+}
+
+static u8 mt6893_band(enum nl80211_band band)
+{
+	switch (band) {
+	case NL80211_BAND_6GHZ:
+		return 3;
+	case NL80211_BAND_5GHZ:
+		return 2;
+	default:
+		return 1;	/* BAND_2G4 */
+	}
+}
+
+/* SCA 1, SCB 3, SCN 0 */
+static u8 mt6893_sco(const struct cfg80211_chan_def *def)
+{
+	int width = cfg80211_chandef_get_width(def);
+	int low;
+
+	if (width < 40)
+		return 0;
+
+	low = def->center_freq1 - width / 2;
+
+	return ((def->chan->center_freq - low) / 20) % 2 ? 3 : 1;
+}
+
+static void mt6893_fill_rlm(struct mt792x_dev *dev, struct mt6893_bss_rlm *rlm,
+			    struct ieee80211_vif *vif,
+			    const struct cfg80211_chan_def *def)
+{
+	struct ieee80211_bss_conf *conf = &vif->bss_conf;
+	u8 nss = hweight8(dev->mphy.antenna_mask);
+
+	rlm->band = mt6893_band(def->chan->band);
+	rlm->primary_ch = def->chan->hw_value;
+	rlm->sco = mt6893_sco(def);
+	rlm->erp_protect = conf->use_cts_prot;
+	rlm->ht_protect = conf->ht_operation_mode &
+			  IEEE80211_HT_OP_MODE_PROTECTION;
+	rlm->ht_op_info2 = cpu_to_le16(conf->ht_operation_mode);
+	if (rlm->sco)
+		rlm->ht_op_info1 = rlm->sco | IEEE80211_HT_PARAM_CHAN_WIDTH_ANY;
+	rlm->short_preamble = conf->use_short_preamble;
+	rlm->short_slot = conf->use_short_slot;
+
+	switch (def->width) {
+	case NL80211_CHAN_WIDTH_80:
+		rlm->vht_width = 1;
+		break;
+	case NL80211_CHAN_WIDTH_160:
+		rlm->vht_width = 2;
+		break;
+	case NL80211_CHAN_WIDTH_80P80:
+		rlm->vht_width = 3;
+		break;
+	default:
+		break;
+	}
+	if (rlm->vht_width) {
+		rlm->vht_s1 = ieee80211_frequency_to_channel(def->center_freq1);
+		if (def->center_freq2)
+			rlm->vht_s2 =
+				ieee80211_frequency_to_channel(def->center_freq2);
+	}
+
+	rlm->tx_nss = nss;
+	rlm->rx_nss = nss;
+}
+
+/* Station BSS: disconnected before authentication, connected once associated. */
+int mt7921_mcu_legacy_set_bss_info(struct mt792x_dev *dev,
+				   struct ieee80211_vif *vif,
+				   struct ieee80211_sta *sta, bool connected)
+{
+	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+	struct mt76_vif_link *mlink = &mvif->bss_conf.mt76;
+	struct mt6893_bss_info req = {
+		.bss_idx = mlink->idx,
+		.conn_state = MT6893_MEDIA_DISCONNECTED,
+		.auth_mode = MT6893_AUTH_OPEN,
+		.enc_status = MT6893_ENC_DISABLED,
+		.bmc_wlan_idx = mvif->sta.deflink.wcid.idx,
+		.ap_sta_idx = MT6893_WTBL_NONE,
+		.dbdc_band = MT6893_BAND_AUTO,
+		.wmm_set = mlink->wmm_idx,
+		.nss = hweight8(dev->mphy.antenna_mask),
+		.rlm.bss_idx = mlink->idx,
+	};
+
+	if (vif->type != NL80211_IFTYPE_STATION)
+		return 0;
+
+	/* Channel contexts are emulated on MT6893. */
+	if (connected && sta) {
+		const struct cfg80211_chan_def *def = mlink->ctx ?
+			&mlink->ctx->def : &dev->mphy.chandef;
+		enum nl80211_band band = def->chan->band;
+		struct ieee80211_supported_band *sband;
+		struct mt792x_sta *msta = (struct mt792x_sta *)sta->drv_priv;
+		u16 rates;
+
+		sband = dev->mphy.hw->wiphy->bands[band];
+		rates = mt6893_rate_set(sband, sta->deflink.supp_rates[band]);
+
+		req.conn_state = MT6893_MEDIA_CONNECTED;
+		req.ssid_len = min_t(u8, vif->cfg.ssid_len,
+				     IEEE80211_MAX_SSID_LEN);
+		memcpy(req.ssid, vif->cfg.ssid, req.ssid_len);
+		memcpy(req.bssid, vif->bss_conf.bssid, ETH_ALEN);
+		req.qbss = vif->bss_conf.qos;
+		req.rate_set = cpu_to_le16(rates);
+		req.basic_rate_set =
+			cpu_to_le16(mt6893_rate_set(sband,
+						    vif->bss_conf.basic_rates));
+		req.ap_sta_idx = msta->deflink.wcid.idx;
+		req.phy_type = mt6893_phy_type(sta, band, rates);
+		if (band != NL80211_BAND_2GHZ)
+			req.non_ht_basic_phy = MT6893_PHY_IDX_OFDM;
+		else if (req.phy_type & MT6893_PHY_ERP)
+			req.non_ht_basic_phy = MT6893_PHY_IDX_ERP;
+		else
+			req.non_ht_basic_phy = MT6893_PHY_IDX_HR_DSSS;
+		mt6893_fill_rlm(dev, &req.rlm, vif, def);
+		req.rlm.vht_basic_mcs = req.basic_rate_set;
+	}
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(SET_BSS_INFO),
+				 &req, sizeof(req), false);
+}
+
+static int
+mt7921_mcu_legacy_sta_update(struct mt792x_dev *dev, struct ieee80211_sta *sta,
+			     struct ieee80211_vif *vif, bool enable,
+			     enum mt76_sta_info_state state)
+{
+	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+	struct mt792x_sta *msta;
+	struct ieee80211_supported_band *sband;
+	struct mt6893_sta_rec req = {};
+	enum nl80211_band band;
+	u16 rates;
+	int rssi;
+
+	/* The own station entry comes from BSS_ACTIVATE_CTRL. */
+	if (!sta)
+		return 0;
+
+	msta = (struct mt792x_sta *)sta->drv_priv;
+
+	if (!enable) {
+		struct {
+			u8 action;	/* STA_REC_CMD_ACTION_STA */
+			u8 sta_idx;
+			u8 bss_idx;
+			u8 rsv;
+		} __packed rm = {
+			.sta_idx = msta->deflink.wcid.idx,
+			.bss_idx = mvif->bss_conf.mt76.idx,
+		};
+
+		return mt76_mcu_send_msg(&dev->mt76,
+					 MCU_CE_CMD(REMOVE_STA_RECORD),
+					 &rm, sizeof(rm), false);
+	}
+
+	band = mvif->bss_conf.mt76.ctx ? mvif->bss_conf.mt76.ctx->def.chan->band :
+					 dev->mphy.chandef.chan->band;
+	sband = dev->mphy.hw->wiphy->bands[band];
+	rates = mt6893_rate_set(sband, sta->deflink.supp_rates[band]);
+	rssi = -ewma_rssi_read(&mvif->bss_conf.rssi);
+
+	req.sta_idx = msta->deflink.wcid.idx;
+	req.sta_type = MT6893_STA_TYPE_LEGACY_AP;
+	memcpy(req.mac, sta->addr, ETH_ALEN);
+	req.aid = cpu_to_le16(vif->cfg.aid);
+	req.bss_idx = mvif->bss_conf.mt76.idx;
+	req.phy_type = mt6893_phy_type(sta, band, rates);
+	req.rate_set = cpu_to_le16(rates);
+	req.basic_rate_set =
+		cpu_to_le16(mt6893_rate_set(sband, vif->bss_conf.basic_rates));
+	req.qos = sta->wme;
+	req.state = state == MT76_STA_INFO_STATE_ASSOC ? MT6893_STA_STATE_3 :
+							 MT6893_STA_STATE_1;
+	req.version = 1;
+	req.rcpi = to_rcpi(rssi);
+	req.wlan_idx = msta->deflink.wcid.idx;
+	req.bmc_wlan_idx = MT6893_WTBL_NONE;
+	req.rts_policy = MT6893_RTS_LEGACY;
+	req.tx_ampdu = 1;
+	req.rx_ampdu = 1;
+	req.tx_ba_size = 64;
+	req.rx_ba_size = 64;
+
+	if (sta->deflink.ht_cap.ht_supported) {
+		const struct ieee80211_sta_ht_cap *ht = &sta->deflink.ht_cap;
+
+		req.mcs_set = ht->mcs.rx_mask[0];
+		req.mcs32 = ht->mcs.rx_mask[4] & BIT(0);
+		memcpy(req.rx_mcs_bitmask, ht->mcs.rx_mask,
+		       sizeof(req.rx_mcs_bitmask));
+		req.rx_highest = ht->mcs.rx_highest;
+		req.ht_cap = cpu_to_le16(ht->cap);
+		req.ampdu_param = ht->ampdu_factor | (ht->ampdu_density << 2);
+	}
+
+	if (sta->deflink.vht_cap.vht_supported) {
+		const struct ieee80211_sta_vht_cap *vht = &sta->deflink.vht_cap;
+
+		req.vht_cap = cpu_to_le32(vht->cap);
+		req.vht_rx_mcs_map = vht->vht_mcs.rx_mcs_map;
+		req.vht_rx_highest = vht->vht_mcs.rx_highest;
+		req.vht_tx_mcs_map = vht->vht_mcs.tx_mcs_map;
+		req.vht_tx_highest = vht->vht_mcs.tx_highest;
+	}
+
+	if (sta->deflink.he_cap.has_he) {
+		const struct ieee80211_sta_he_cap *he = &sta->deflink.he_cap;
+
+		memcpy(req.he_mac_cap, he->he_cap_elem.mac_cap_info,
+		       sizeof(req.he_mac_cap));
+		memcpy(req.he_phy_cap, he->he_cap_elem.phy_cap_info,
+		       sizeof(req.he_phy_cap));
+		req.he_rx_mcs_80 = he->he_mcs_nss_supp.rx_mcs_80;
+		req.he_tx_mcs_80 = he->he_mcs_nss_supp.tx_mcs_80;
+		req.he_rx_mcs_160 = he->he_mcs_nss_supp.rx_mcs_160;
+		req.he_tx_mcs_160 = he->he_mcs_nss_supp.tx_mcs_160;
+		req.he_rx_mcs_80p80 = he->he_mcs_nss_supp.rx_mcs_80p80;
+		req.he_tx_mcs_80p80 = he->he_mcs_nss_supp.tx_mcs_80p80;
+	}
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(UPDATE_STA_RECORD),
+				 &req, sizeof(req), false);
+}
+
 int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
 			      struct sk_buff *skb, int seq)
 {
@@ -1091,6 +1547,10 @@ int mt7921_mcu_sta_update(struct mt792x_dev *dev, struct ieee80211_sta *sta,
 		.rcpi = to_rcpi(rssi),
 	};
 	struct mt792x_sta *msta;
+
+	if (is_mt6893(&dev->mt76))
+		return mt7921_mcu_legacy_sta_update(dev, sta, vif, enable,
+						    state);
 
 	msta = sta ? (struct mt792x_sta *)sta->drv_priv : NULL;
 	info.wcid = msta ? &msta->deflink.wcid : &mvif->sta.deflink.wcid;

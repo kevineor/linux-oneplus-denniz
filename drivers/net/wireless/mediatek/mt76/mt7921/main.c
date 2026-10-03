@@ -328,9 +328,15 @@ mt7921_add_interface(struct ieee80211_hw *hw, struct ieee80211_vif *vif)
 	mvif->bss_conf.mt76.band_idx = 0;
 	mvif->bss_conf.mt76.wmm_idx = mvif->bss_conf.mt76.idx % MT76_CONNAC_MAX_WMM_SETS;
 
-	ret = mt76_connac_mcu_uni_add_dev(&dev->mphy, &vif->bss_conf,
-					  &mvif->bss_conf.mt76,
-					  &mvif->sta.deflink.wcid, true);
+	if (is_mt6893(&dev->mt76))
+		ret = mt76_connac_mcu_legacy_bss_activate(&dev->mphy, vif,
+				&mvif->bss_conf.mt76,
+				MT792x_WTBL_RESERVED - mvif->bss_conf.mt76.idx,
+				true);
+	else
+		ret = mt76_connac_mcu_uni_add_dev(&dev->mphy, &vif->bss_conf,
+						  &mvif->bss_conf.mt76,
+						  &mvif->sta.deflink.wcid, true);
 	if (ret)
 		goto out;
 
@@ -852,6 +858,14 @@ int mt7921_mac_sta_add(struct mt76_dev *mdev, struct ieee80211_vif *vif,
 	mt7921_mac_wtbl_update(dev, idx,
 			       MT_WTBL_UPDATE_ADM_COUNT_CLEAR);
 
+	/* The BSS is set, disconnected, before the AP station record. */
+	if (is_mt6893(&dev->mt76) && vif->type == NL80211_IFTYPE_STATION &&
+	    !sta->tdls) {
+		ret = mt7921_mcu_legacy_set_bss_info(dev, vif, NULL, false);
+		if (ret)
+			return ret;
+	}
+
 	ret = mt7921_mcu_sta_update(dev, sta, vif, true,
 				    MT76_STA_INFO_STATE_NONE);
 	if (ret)
@@ -880,9 +894,14 @@ int mt7921_mac_sta_event(struct mt76_dev *mdev, struct ieee80211_vif *vif,
 
 	mt792x_mutex_acquire(dev);
 
-	if (vif->type == NL80211_IFTYPE_STATION && !sta->tdls)
-		mt76_connac_mcu_uni_add_bss(&dev->mphy, vif, &mvif->sta.deflink.wcid,
-					    true, mvif->bss_conf.mt76.ctx);
+	if (vif->type == NL80211_IFTYPE_STATION && !sta->tdls) {
+		if (is_mt6893(&dev->mt76))
+			mt7921_mcu_legacy_set_bss_info(dev, vif, sta, true);
+		else
+			mt76_connac_mcu_uni_add_bss(&dev->mphy, vif,
+						    &mvif->sta.deflink.wcid,
+						    true, mvif->bss_conf.mt76.ctx);
+	}
 
 	ewma_avg_signal_init(&msta->deflink.avg_ack_signal);
 
@@ -917,7 +936,9 @@ void mt7921_mac_sta_remove(struct mt76_dev *mdev, struct ieee80211_vif *vif,
 
 		mvif->wep_sta = NULL;
 		ewma_rssi_init(&mvif->bss_conf.rssi);
-		if (!sta->tdls)
+		if (!sta->tdls && is_mt6893(&dev->mt76))
+			mt7921_mcu_legacy_set_bss_info(dev, vif, NULL, false);
+		else if (!sta->tdls)
 			mt76_connac_mcu_uni_add_bss(&dev->mphy, vif,
 						    &mvif->sta.deflink.wcid, false,
 						    mvif->bss_conf.mt76.ctx);
