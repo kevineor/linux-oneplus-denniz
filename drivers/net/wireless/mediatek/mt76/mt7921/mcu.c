@@ -189,6 +189,24 @@ static_assert(offsetof(struct mt6893_bss_info, dbdc_band) == 90);
 static_assert(offsetof(struct mt6893_bss_info, he_basic_mcs) == 100);
 static_assert(sizeof(struct mt6893_bss_info) == 116);
 
+/* CMD_CH_PRIVILEGE and EVENT_CH_PRIVILEGE */
+struct mt6893_ch_privilege {
+	u8 bss_idx;
+	u8 token;
+	u8 action;	/* 0: request, 1: abort; status in the event */
+	u8 primary_ch;
+	u8 sco;
+	u8 band;
+	u8 width;
+	u8 s1;
+	u8 s2;
+	u8 req_type;
+	u8 dbdc_band;
+	u8 rsv0;
+	__le32 interval;	/* ms */
+	u8 rsv1[8];
+} __packed;
+
 /* mac80211 rate mask to the vendor rate set, in aucDataRate[] order. */
 static u16 mt6893_rate_set(struct ieee80211_supported_band *sband, u32 mask)
 {
@@ -466,6 +484,54 @@ mt7921_mcu_legacy_sta_update(struct mt792x_dev *dev, struct ieee80211_sta *sta,
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(UPDATE_STA_RECORD),
 				 &req, sizeof(req), false);
+}
+
+/* CH_PRIVILEGE, granted by the legacy event 0x10 (EVENT_ID_CH_PRIVILEGE). */
+static int mt7921_mcu_legacy_roc(struct mt792x_dev *dev, struct mt792x_vif *vif,
+				 struct ieee80211_channel *chan, int duration,
+				 u8 type, u8 token_id, bool abort)
+{
+	struct mt6893_ch_privilege req = {
+		.bss_idx = vif->bss_conf.mt76.idx,
+		.token = token_id,
+		.action = abort,
+		.dbdc_band = MT6893_BAND_AUTO,
+	};
+
+	if (!abort) {
+		req.primary_ch = chan->hw_value;
+		req.band = mt6893_band(chan->band);
+		req.req_type = type;
+		req.interval = cpu_to_le32(duration);
+	}
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(SET_ROC),
+				 &req, sizeof(req), false);
+}
+
+static void
+mt7921_mcu_legacy_roc_event(struct mt792x_dev *dev, struct sk_buff *skb)
+{
+	struct mt76_connac2_mcu_rxd *rxd;
+	struct mt6893_ch_privilege *grant;
+
+	rxd = (struct mt76_connac2_mcu_rxd *)skb->data;
+	grant = (struct mt6893_ch_privilege *)rxd->tlv;
+
+	dev_dbg(dev->mt76.dev, "channel %u granted, token %u, status %u, %u ms\n",
+		grant->primary_ch, grant->token, grant->action,
+		le32_to_cpu(grant->interval));
+
+	if (grant->action)	/* EVENT_CH_STATUS_GRANT is 0 */
+		return;
+
+	if (grant->req_type == MT7921_ROC_REQ_ROC)
+		ieee80211_ready_on_channel(dev->mt76.phy.hw);
+
+	dev->phy.roc_grant = true;
+	wake_up(&dev->phy.roc_wait);
+	mod_timer(&dev->phy.roc_timer,
+		  jiffies + msecs_to_jiffies(le32_to_cpu(grant->interval)));
 }
 
 int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
@@ -780,6 +846,10 @@ mt7921_mcu_rx_unsolicited_event(struct mt792x_dev *dev, struct sk_buff *skb)
 		break;
 	case MCU_EVENT_RSSI_NOTIFY:
 		mt7921_mcu_rssi_monitor_event(dev, skb);
+		break;
+	case MCU_EVENT_ROC:
+		if (is_mt6893(&dev->mt76))
+			mt7921_mcu_legacy_roc_event(dev, skb);
 		break;
 	default:
 		break;
@@ -1294,6 +1364,10 @@ int mt7921_mcu_set_roc(struct mt792x_phy *phy, struct mt792x_vif *vif,
 		},
 	};
 
+	if (is_mt6893(&dev->mt76))
+		return mt7921_mcu_legacy_roc(dev, vif, chan, duration, type,
+					     token_id, false);
+
 	if (chan->hw_value < center_ch)
 		req.roc.sco = 1; /* SCA */
 	else if (chan->hw_value > center_ch)
@@ -1340,6 +1414,10 @@ int mt7921_mcu_abort_roc(struct mt792x_phy *phy, struct mt792x_vif *vif,
 			.dbdcband = 0xff, /* auto*/
 		},
 	};
+
+	if (is_mt6893(&dev->mt76))
+		return mt7921_mcu_legacy_roc(dev, vif, NULL, 0, 0, token_id,
+					     true);
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(ROC),
 				 &req, sizeof(req), false);
