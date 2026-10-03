@@ -387,6 +387,24 @@ mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
 	}
 
 	hdr_gap = (u8 *)rxd - skb->data + 2 * remove_pad;
+
+	/*
+	 * The MT6893 firmware translates all unicast data from a known station
+	 * to 802.3, EAPOL included, while mac80211 only accepts 802.3 frames
+	 * from authorized stations. Restore the 802.11 header from group 4.
+	 */
+	if (hdr_trans && is_mt6893(&dev->mt76) && msta && msta->vif &&
+	    !ieee80211_has_morefrags(fc)) {
+		struct ieee80211_vif *vif;
+
+		vif = container_of((void *)msta->vif, struct ieee80211_vif,
+				   drv_priv);
+		if (!mt76_connac2_reverse_frag0_hdr_trans(vif, skb, hdr_gap)) {
+			hdr_trans = false;
+			goto reversed;
+		}
+	}
+
 	if (hdr_trans && ieee80211_has_morefrags(fc)) {
 		struct ieee80211_vif *vif;
 		int err;
@@ -410,6 +428,7 @@ mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
 		}
 	}
 
+reversed:
 	if (!hdr_trans) {
 		struct ieee80211_hdr *hdr;
 
