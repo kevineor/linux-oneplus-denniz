@@ -1250,6 +1250,8 @@ static int lvts_ctrl_manual_rck(struct device *dev, struct lvts_ctrl *lvts_ctrl)
 	return ret;
 }
 
+static bool lvts_mt6893_auto_rck(const struct lvts_data *lvts_data);
+
 /*
  * A controller left running, by a previous probe for instance, keeps
  * accessing its sensors on its own: stop the periodic sensing and wait
@@ -1271,7 +1273,7 @@ static int lvts_ctrl_initialize(struct device *dev, struct lvts_ctrl *lvts_ctrl)
 
 	lvts_write_config(lvts_ctrl, lvts_data->init_cmd, lvts_data->num_init_cmd);
 
-	if (lvts_data->rck_offsets)
+	if (lvts_data->rck_offsets && !lvts_mt6893_auto_rck(lvts_data))
 		return lvts_ctrl_manual_rck(dev, lvts_ctrl);
 
 	return 0;
@@ -1582,6 +1584,9 @@ static int lvts_domain_init(struct device *dev, struct lvts_domain *lvts_td,
 	return lvts_debugfs_init(dev, lvts_td);
 }
 
+static const struct lvts_data *
+lvts_mt6893_init_select(struct device *dev, const struct lvts_data *lvts_data);
+
 static int lvts_probe(struct platform_device *pdev)
 {
 	const struct lvts_data *lvts_data;
@@ -1597,6 +1602,8 @@ static int lvts_probe(struct platform_device *pdev)
 	lvts_data = of_device_get_match_data(dev);
 	if (!lvts_data)
 		return -ENODEV;
+
+	lvts_data = lvts_mt6893_init_select(dev, lvts_data);
 
 	lvts_td->clk = devm_clk_get_enabled(dev, NULL);
 	if (IS_ERR(lvts_td->clk))
@@ -2286,6 +2293,37 @@ MT6893_LVTS_DATA(mt6893_lvts_mcu_data, mt8192_lvts_mcu_data_ctrl,
 		 mt6893_init_cmds, mt6893_lvts_mcu_rck);
 MT6893_LVTS_DATA(mt6893_lvts_ap_data, mt8192_lvts_ap_data_ctrl,
 		 mt6893_init_cmds, mt6893_lvts_ap_rck);
+MT6893_LVTS_DATA(mt6893_lvts_mcu_auto_data, mt8192_lvts_mcu_data_ctrl,
+		 default_init_cmds, NULL);
+MT6893_LVTS_DATA(mt6893_lvts_ap_auto_data, mt8192_lvts_ap_data_ctrl,
+		 default_init_cmds, NULL);
+
+/*
+ * BRING-UP: the MT8192 sequence and its auto-RCK, to compare readings with
+ * the vendor manual RC calibration. To remove.
+ */
+static bool mt6893_auto_rck;
+module_param(mt6893_auto_rck, bool, 0644);
+
+static bool lvts_mt6893_auto_rck(const struct lvts_data *lvts_data)
+{
+	return mt6893_auto_rck;
+}
+
+static const struct lvts_data *
+lvts_mt6893_init_select(struct device *dev, const struct lvts_data *lvts_data)
+{
+	if (lvts_data != &mt6893_lvts_mcu_data && lvts_data != &mt6893_lvts_ap_data)
+		return lvts_data;
+
+	dev_info(dev, "%s\n", mt6893_auto_rck ? "MT8192 sequence, auto RCK" :
+					       "vendor sequence, manual RCK");
+	if (!mt6893_auto_rck)
+		return lvts_data;
+
+	return lvts_data == &mt6893_lvts_mcu_data ?
+	       &mt6893_lvts_mcu_auto_data : &mt6893_lvts_ap_auto_data;
+}
 
 static const struct lvts_data mt8192_lvts_mcu_data = {
 	.lvts_ctrl	= mt8192_lvts_mcu_data_ctrl,
