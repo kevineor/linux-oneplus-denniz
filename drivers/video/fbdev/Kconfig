@@ -1759,6 +1759,16 @@ config FB_BROADSHEET
 	  and could also have been called by other names when coupled with
 	  a bridge adapter.
 
+config FB_MT6893_LKFB
+	tristate "MT6893 bootloader framebuffer (bring-up)"
+	depends on FB && ARM64 && (ARCH_MEDIATEK || COMPILE_TEST)
+	select FB_SYSMEM_HELPERS
+	help
+	  An fbdev on the framebuffer the LK bootloader leaves on the OnePlus
+	  Nord 2 (MT6893), with the panel in DSI command mode: the driver
+	  triggers each frame on the pipeline the LK configured. Bring-up
+	  only, until the mediatek DRM driver handles MT6893.
+
 config FB_SIMPLE
 	tristate "Simple framebuffer support"
 	depends on FB
