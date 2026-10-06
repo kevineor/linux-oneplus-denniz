@@ -199,6 +199,14 @@ struct mt792x_vif {
 	struct timer_list csa_timer;
 
 	struct mt792x_nan nan;
+
+	/*
+	 * MT6893: encryption status reported to the firmware (ENUM_WEP_STATUS,
+	 * 0 until a hardware key is set) and WTBL entry of the group key.
+	 */
+	u8 mt6893_enc;
+	u8 mt6893_gtk_idx;
+	bool mt6893_gtk_valid;
 };
 
 struct mt792x_phy {

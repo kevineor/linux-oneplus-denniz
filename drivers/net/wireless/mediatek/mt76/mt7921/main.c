@@ -535,8 +535,66 @@ static int mt7921_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 	    !(key->flags & IEEE80211_KEY_FLAG_PAIRWISE))
 		return -EOPNOTSUPP;
 
-	if (is_mt6893(&dev->mt76))
-		return -EOPNOTSUPP;
+	/*
+	 * MT6893, station only: pairwise and group keys with ADD_REMOVE_KEY,
+	 * then SET_BSS_INFO with the security settings and the group key WTBL
+	 * entry, as the vendor driver does.
+	 */
+	if (is_mt6893(&dev->mt76)) {
+		bool pairwise = key->flags & IEEE80211_KEY_FLAG_PAIRWISE;
+		u8 enc = mt7921_mcu_legacy_enc_status(key->cipher);
+		struct ieee80211_sta *ap = NULL;
+		int ret;
+		u8 idx;
+
+		if (!enc || vif->type != NL80211_IFTYPE_STATION ||
+		    (pairwise && !sta))
+			return -EOPNOTSUPP;
+
+		mt792x_mutex_acquire(dev);
+
+		if (pairwise) {
+			idx = wcid->idx;
+		} else {
+			if (cmd == SET_KEY && !mvif->mt6893_gtk_valid) {
+				ret = mt76_wcid_alloc(dev->mt76.wcid_mask,
+						      MT792x_WTBL_STA - 1);
+				if (ret < 0) {
+					ret = -EOPNOTSUPP;
+					goto out_mt6893;
+				}
+				mvif->mt6893_gtk_idx = ret;
+				mvif->mt6893_gtk_valid = true;
+			}
+			if (!mvif->mt6893_gtk_valid) {
+				ret = -EOPNOTSUPP;
+				goto out_mt6893;
+			}
+			idx = mvif->mt6893_gtk_idx;
+		}
+
+		ret = mt7921_mcu_legacy_add_key(dev, vif, idx, pairwise, key, cmd);
+		if (ret)
+			goto out_mt6893;
+
+		if (pairwise) {
+			wcid->hw_key_idx = cmd == SET_KEY ? key->keyidx : -1;
+			mt76_wcid_key_setup(&dev->mt76, wcid,
+					    cmd == SET_KEY ? key : NULL);
+		}
+		if (cmd == SET_KEY)
+			mvif->mt6893_enc = enc;
+
+		if (mvif->wep_sta)
+			ap = container_of((void *)mvif->wep_sta,
+					  struct ieee80211_sta, drv_priv);
+		if (ap && vif->cfg.assoc)
+			mt7921_mcu_legacy_set_bss_info(dev, vif, ap, true);
+out_mt6893:
+		mt792x_mutex_release(dev);
+
+		return ret;
+	}
 
 	/* fall back to sw encryption for unsupported ciphers */
 	switch (key->cipher) {
@@ -943,9 +1001,14 @@ void mt7921_mac_sta_remove(struct mt76_dev *mdev, struct ieee80211_vif *vif,
 
 		mvif->wep_sta = NULL;
 		ewma_rssi_init(&mvif->bss_conf.rssi);
-		if (!sta->tdls && is_mt6893(&dev->mt76))
+		if (!sta->tdls && is_mt6893(&dev->mt76)) {
+			mvif->mt6893_enc = 0;
+			if (mvif->mt6893_gtk_valid)
+				mt76_wcid_mask_clear(dev->mt76.wcid_mask,
+						     mvif->mt6893_gtk_idx);
+			mvif->mt6893_gtk_valid = false;
 			mt7921_mcu_legacy_set_bss_info(dev, vif, NULL, false);
-		else if (!sta->tdls)
+		} else if (!sta->tdls)
 			mt76_connac_mcu_uni_add_bss(&dev->mphy, vif,
 						    &mvif->sta.deflink.wcid, false,
 						    mvif->bss_conf.mt76.ctx);

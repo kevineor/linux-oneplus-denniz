@@ -839,7 +839,9 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
 
 	ieee80211_hw_set(hw, SINGLE_SCAN_ON_ALL_BANDS);
 	ieee80211_hw_set(hw, HAS_RATE_CONTROL);
-	ieee80211_hw_set(hw, SUPPORTS_TX_ENCAP_OFFLOAD);
+	/* 802.3 TX is not validated on MT6893. */
+	if (!is_mt6893(&dev->mt76))
+		ieee80211_hw_set(hw, SUPPORTS_TX_ENCAP_OFFLOAD);
 	ieee80211_hw_set(hw, SUPPORTS_RX_DECAP_OFFLOAD);
 	if (is_mt7927(&dev->mt76))
 		ieee80211_hw_set(hw, NO_VIRTUAL_MONITOR);

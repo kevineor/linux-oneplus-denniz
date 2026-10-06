@@ -211,6 +211,11 @@ int mt7921_mcu_set_bss_pm(struct mt792x_dev *dev, struct ieee80211_vif *vif,
 int mt7921_mcu_sta_update(struct mt792x_dev *dev, struct ieee80211_sta *sta,
 			  struct ieee80211_vif *vif, bool enable,
 			  enum mt76_sta_info_state state);
+u8 mt7921_mcu_legacy_enc_status(u32 cipher);
+int mt7921_mcu_legacy_add_key(struct mt792x_dev *dev, struct ieee80211_vif *vif,
+			      u8 wlan_idx, bool pairwise,
+			      struct ieee80211_key_conf *key,
+			      enum set_key_cmd cmd);
 int mt7921_mcu_legacy_set_bss_info(struct mt792x_dev *dev,
 				   struct ieee80211_vif *vif,
 				   struct ieee80211_sta *sta, bool connected);

@@ -3,6 +3,7 @@
 
 #include <linux/fs.h>
 #include <linux/firmware.h>
+#include <linux/unaligned.h>
 #include "mt7921.h"
 #include "regd.h"
 #include "mcu.h"
@@ -39,6 +40,7 @@
 #define MT6893_MEDIA_CONNECTED		0
 #define MT6893_MEDIA_DISCONNECTED	1
 #define MT6893_AUTH_OPEN		0
+#define MT6893_AUTH_WPA2_PSK		7
 #define MT6893_ENC_DISABLED		1
 #define MT6893_RTS_LEGACY		3
 
@@ -321,7 +323,11 @@ static void mt6893_fill_rlm(struct mt792x_dev *dev, struct mt6893_bss_rlm *rlm,
 	rlm->rx_nss = nss;
 }
 
-/* Station BSS: disconnected before authentication, connected once associated. */
+/*
+ * Station BSS: disconnected before authentication, connected once
+ * associated. Open until a hardware key is set, then WPA2-PSK with the key
+ * cipher and the group key WTBL entry for broadcast, as nicUpdateBssEx().
+ */
 int mt7921_mcu_legacy_set_bss_info(struct mt792x_dev *dev,
 				   struct ieee80211_vif *vif,
 				   struct ieee80211_sta *sta, bool connected)
@@ -331,9 +337,11 @@ int mt7921_mcu_legacy_set_bss_info(struct mt792x_dev *dev,
 	struct mt6893_bss_info req = {
 		.bss_idx = mlink->idx,
 		.conn_state = MT6893_MEDIA_DISCONNECTED,
-		.auth_mode = MT6893_AUTH_OPEN,
-		.enc_status = MT6893_ENC_DISABLED,
-		.bmc_wlan_idx = mvif->sta.deflink.wcid.idx,
+		.auth_mode = mvif->mt6893_enc ? MT6893_AUTH_WPA2_PSK :
+						MT6893_AUTH_OPEN,
+		.enc_status = mvif->mt6893_enc ?: MT6893_ENC_DISABLED,
+		.bmc_wlan_idx = mvif->mt6893_gtk_valid ? mvif->mt6893_gtk_idx :
+					mvif->sta.deflink.wcid.idx,
 		.ap_sta_idx = MT6893_WTBL_NONE,
 		.dbdc_band = MT6893_BAND_AUTO,
 		.wmm_set = mlink->wmm_idx,
@@ -1606,6 +1614,104 @@ mt7921_mcu_set_bss_pm(struct mt792x_dev *dev, struct ieee80211_vif *vif,
 		return err;
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(SET_BSS_CONNECTED),
+				 &req, sizeof(req), false);
+}
+
+/* ENUM_WEP_STATUS of a cipher, 0 if not supported in hardware. */
+u8 mt7921_mcu_legacy_enc_status(u32 cipher)
+{
+	switch (cipher) {
+	case WLAN_CIPHER_SUITE_TKIP:
+		return 4;
+	case WLAN_CIPHER_SUITE_CCMP:
+	case WLAN_CIPHER_SUITE_CCMP_256:
+		return 6;
+	case WLAN_CIPHER_SUITE_GCMP:
+	case WLAN_CIPHER_SUITE_GCMP_256:
+		return 8;
+	default:
+		return 0;
+	}
+}
+
+/*
+ * CMD_802_11_KEY, as wlanoidSetAddKey(): the pairwise key in the AP WTBL
+ * entry, the group key in its own entry with the AP address and its RSC.
+ */
+int mt7921_mcu_legacy_add_key(struct mt792x_dev *dev, struct ieee80211_vif *vif,
+			      u8 wlan_idx, bool pairwise,
+			      struct ieee80211_key_conf *key,
+			      enum set_key_cmd cmd)
+{
+	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+	struct {
+		u8 add;
+		u8 tx_key;
+		u8 key_type;	/* 1: pairwise */
+		u8 authenticator;
+		u8 peer[ETH_ALEN];
+		u8 bss_idx;
+		u8 algo;
+		u8 key_id;
+		u8 key_len;
+		u8 wlan_idx;
+		u8 mgmt_protection;
+		u8 key[32];
+		u8 rsc[16];
+	} __packed req = {
+		.add = cmd == SET_KEY,
+		.tx_key = pairwise,
+		.key_type = pairwise,
+		.bss_idx = mvif->bss_conf.mt76.idx,
+		.key_id = key->keyidx,
+		.wlan_idx = wlan_idx,
+	};
+	struct ieee80211_key_seq seq;
+	int i;
+
+	switch (key->cipher) {
+	case WLAN_CIPHER_SUITE_TKIP:
+		req.algo = 2;
+		break;
+	case WLAN_CIPHER_SUITE_CCMP:
+		req.algo = 4;
+		break;
+	case WLAN_CIPHER_SUITE_CCMP_256:
+		req.algo = 10;
+		break;
+	case WLAN_CIPHER_SUITE_GCMP:
+		req.algo = 11;
+		break;
+	case WLAN_CIPHER_SUITE_GCMP_256:
+		req.algo = 12;
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	if (key->keylen > sizeof(req.key))
+		return -EINVAL;
+
+	memcpy(req.peer, vif->bss_conf.bssid, ETH_ALEN);
+	if (cmd == SET_KEY) {
+		req.key_len = key->keylen;
+		memcpy(req.key, key->key, key->keylen);
+	}
+
+	/* little-endian RSC */
+	if (cmd == SET_KEY && !pairwise) {
+		ieee80211_get_key_rx_seq(key, 0, &seq);
+		if (key->cipher == WLAN_CIPHER_SUITE_TKIP) {
+			req.rsc[0] = seq.tkip.iv16 & 0xff;
+			req.rsc[1] = seq.tkip.iv16 >> 8;
+			put_unaligned_le32(seq.tkip.iv32, &req.rsc[2]);
+		} else {
+			for (i = 0; i < IEEE80211_CCMP_PN_LEN; i++)
+				req.rsc[i] = seq.ccmp.pn[IEEE80211_CCMP_PN_LEN - 1 - i];
+		}
+	}
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_CE_CMD(ADD_REMOVE_KEY),
 				 &req, sizeof(req), false);
 }
 
