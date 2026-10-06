@@ -1715,6 +1715,131 @@ int mt7921_mcu_legacy_add_key(struct mt792x_dev *dev, struct ieee80211_vif *vif,
 				 &req, sizeof(req), false);
 }
 
+/*
+ * CMD_SET_COUNTRY_CHANNEL_POWER_LIMIT, without 11AC_V2: one limit per channel
+ * and rate group, in 0.5 dBm. Sent twice as rlmDomainSendPwrLimitCmd() does:
+ * the 11ac limits replace the firmware table, the HE limits are added to it.
+ * The limit is the regulatory one, lowered by the nl80211 SAR and the
+ * configured power, for all rates.
+ */
+#define MT6893_PWR_LIMIT_CH		61
+#define MT6893_PWR_LIMIT_11AC		0	/* PWR_LIMIT_TYPE_COMP_11AC */
+#define MT6893_PWR_LIMIT_11AX		2	/* PWR_LIMIT_TYPE_COMP_11AX */
+
+struct mt6893_ch_pwr {
+	u8 ch;
+	s8 cck;
+	s8 bw[8];	/* 20, 40, 80, 160 MHz; low then high MCS */
+	u8 flag;
+	u8 rsv;
+} __packed;
+
+struct mt6893_ch_pwr_he {
+	u8 ch;
+	s8 ru[18];	/* RU26, 52, 106, 242, 484, 996; MCS 0-4, 5-9, 10-11 */
+	u8 flag;
+	u8 valid;
+} __packed;
+
+struct mt6893_pwr_limit {
+	__le16 country;
+	u8 country_flag;
+	u8 num;
+	u8 keep;
+	u8 band_idx;
+	u8 limit_type;
+	u8 version;
+	union {
+		struct mt6893_ch_pwr ch[MT6893_PWR_LIMIT_CH];
+		struct mt6893_ch_pwr_he he[MT6893_PWR_LIMIT_CH];
+		u8 rsv[MT6893_PWR_LIMIT_CH * 24];	/* HE 160 MHz */
+	} u;
+} __packed;
+
+static_assert(sizeof(struct mt6893_ch_pwr) == 12);
+static_assert(sizeof(struct mt6893_ch_pwr_he) == 21);
+static_assert(sizeof(struct mt6893_pwr_limit) == 1472);
+
+static s8 mt6893_ch_limit(struct mt76_phy *phy, struct ieee80211_channel *chan)
+{
+	int power = chan->max_power * 2;
+
+	if (phy->hw->conf.power_level > 0)
+		power = min(power, phy->hw->conf.power_level * 2);
+	power = mt76_get_sar_power(phy, chan, power);
+
+	return clamp(power, 0, 127);
+}
+
+int mt7921_mcu_legacy_set_pwr_limit(struct mt76_phy *phy)
+{
+	static const enum nl80211_band bands[] = {
+		NL80211_BAND_2GHZ, NL80211_BAND_5GHZ,
+	};
+	struct mt76_dev *dev = phy->dev;
+	struct mt6893_pwr_limit *req;
+	int b, i, n = 0, ret;
+
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	if (!req)
+		return -ENOMEM;
+
+	req->country = cpu_to_le16(dev->alpha2[0] << 8 | dev->alpha2[1]);
+	req->version = 1;
+
+	req->limit_type = MT6893_PWR_LIMIT_11AC;
+	for (b = 0; b < ARRAY_SIZE(bands); b++) {
+		struct ieee80211_supported_band *sband;
+
+		sband = phy->hw->wiphy->bands[bands[b]];
+		if (!sband)
+			continue;
+
+		for (i = 0; i < sband->n_channels; i++) {
+			struct ieee80211_channel *chan = &sband->channels[i];
+			struct mt6893_ch_pwr *e;
+			s8 p;
+
+			if (chan->flags & IEEE80211_CHAN_DISABLED)
+				continue;
+			if (n == MT6893_PWR_LIMIT_CH)
+				break;
+
+			p = mt6893_ch_limit(phy, chan);
+			e = &req->u.ch[n++];
+			e->ch = chan->hw_value;
+			e->cck = bands[b] == NL80211_BAND_2GHZ ? p : 0;
+			memset(e->bw, p, sizeof(e->bw));
+		}
+	}
+	req->num = n;
+
+	ret = mt76_mcu_send_msg(dev, MCU_CE_CMD(SET_COUNTRY_POWER_LIMIT),
+				req, sizeof(*req), false);
+	if (ret)
+		goto out;
+
+	for (i = n - 1; i >= 0; i--) {
+		u8 ch = req->u.ch[i].ch;
+		s8 p = req->u.ch[i].bw[0];
+		struct mt6893_ch_pwr_he *he = &req->u.he[i];
+
+		memset(he, 0, sizeof(*he));
+		he->ch = ch;
+		memset(he->ru, p, sizeof(he->ru));
+		he->valid = 1;
+	}
+	req->keep = 1;
+	req->limit_type = MT6893_PWR_LIMIT_11AX;
+
+	ret = mt76_mcu_send_msg(dev, MCU_CE_CMD(SET_COUNTRY_POWER_LIMIT),
+				req, sizeof(*req), false);
+out:
+	kfree(req);
+
+	return ret;
+}
+
 int mt7921_mcu_sta_update(struct mt792x_dev *dev, struct ieee80211_sta *sta,
 			  struct ieee80211_vif *vif, bool enable,
 			  enum mt76_sta_info_state state)

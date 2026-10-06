@@ -1399,7 +1399,7 @@ int mt7921_set_tx_sar_pwr(struct ieee80211_hw *hw,
 
 	/* The MT6893 firmware has no SET_RATE_TX_POWER. */
 	if (is_mt6893(mphy->dev))
-		return 0;
+		return mt7921_mcu_legacy_set_pwr_limit(mphy);
 
 	return mt76_connac_mcu_set_rate_txpower(mphy);
 }
