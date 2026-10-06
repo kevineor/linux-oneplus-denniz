@@ -513,6 +513,13 @@ out:
 }
 EXPORT_SYMBOL_GPL(mt7921_set_channel);
 
+int mt7921_mt6893_hwkey = 2;
+static bool mt7921_mt6893_pwr_limit = true;
+module_param_named(mt6893_pwr_limit, mt7921_mt6893_pwr_limit, bool, 0644);
+MODULE_PARM_DESC(mt6893_pwr_limit, "MT6893: apply power limits and SAR with SET_COUNTRY_POWER_LIMIT");
+module_param_named(mt6893_hwkey, mt7921_mt6893_hwkey, int, 0644);
+MODULE_PARM_DESC(mt6893_hwkey, "MT6893: 0 software keys, 1 command only, 2 hardware keys");
+
 static int mt7921_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 			  struct ieee80211_vif *vif, struct ieee80211_sta *sta,
 			  struct ieee80211_key_conf *key)
@@ -547,8 +554,10 @@ static int mt7921_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 		int ret;
 		u8 idx;
 
-		if (!enc || vif->type != NL80211_IFTYPE_STATION ||
-		    (pairwise && !sta))
+		if (!mt7921_mt6893_hwkey || !enc ||
+		    vif->type != NL80211_IFTYPE_STATION ||
+		    (pairwise && !sta) ||
+		    (!pairwise && mt7921_mt6893_hwkey < 2))
 			return -EOPNOTSUPP;
 
 		mt792x_mutex_acquire(dev);
@@ -574,6 +583,8 @@ static int mt7921_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 		}
 
 		ret = mt7921_mcu_legacy_add_key(dev, vif, idx, pairwise, key, cmd);
+		if (!ret && mt7921_mt6893_hwkey < 2)
+			ret = -EOPNOTSUPP;
 		if (ret)
 			goto out_mt6893;
 
@@ -1424,7 +1435,8 @@ int mt7921_set_tx_sar_pwr(struct ieee80211_hw *hw,
 
 	/* The MT6893 firmware has no SET_RATE_TX_POWER. */
 	if (is_mt6893(mphy->dev))
-		return mt7921_mcu_legacy_set_pwr_limit(mphy);
+		return mt7921_mt6893_pwr_limit ?
+		       mt7921_mcu_legacy_set_pwr_limit(mphy) : 0;
 
 	return mt76_connac_mcu_set_rate_txpower(mphy);
 }

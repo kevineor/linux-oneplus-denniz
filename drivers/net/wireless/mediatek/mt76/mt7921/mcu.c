@@ -1814,12 +1814,19 @@ static_assert(sizeof(struct mt6893_ch_pwr) == 12);
 static_assert(sizeof(struct mt6893_ch_pwr_he) == 21);
 static_assert(sizeof(struct mt6893_pwr_limit) == 1472);
 
+/* The lowest OnePlus SAR scenario, until something picks the right one. */
+static int mt7921_mt6893_max_power = 22;
+module_param_named(mt6893_max_power, mt7921_mt6893_max_power, int, 0644);
+MODULE_PARM_DESC(mt6893_max_power, "MT6893: power cap in 0.5 dBm, below the nl80211 SAR (0: none)");
+
 static s8 mt6893_ch_limit(struct mt76_phy *phy, struct ieee80211_channel *chan)
 {
 	int power = chan->max_power * 2;
 
 	if (phy->hw->conf.power_level > 0)
 		power = min(power, phy->hw->conf.power_level * 2);
+	if (mt7921_mt6893_max_power > 0)
+		power = min(power, mt7921_mt6893_max_power);
 	power = mt76_get_sar_power(phy, chan, power);
 
 	return clamp(power, 0, 127);
