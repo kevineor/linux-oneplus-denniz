@@ -661,6 +661,15 @@
 			#size-cells = <0>;
 			status = "disabled";
 		};
+		lvts_ap: thermal-sensor@1100b000 {
+			compatible = "mediatek,mt6893-lvts-ap";
+			reg = <0 0x1100b000 0 0xc00>;
+			interrupts = <0 169 4 0>;
+			clocks = <&infracfg 4>;
+			nvmem-cells = <&lvts_e_data1>;
+			nvmem-cell-names = "lvts-calib-data-1";
+			#thermal-sensor-cells = <1>;
+		};
 		disp_pwm0: pwm@1100e000 {
 			compatible = "mediatek,mt6893-disp-pwm", "mediatek,mt8183-disp-pwm";
 			reg = <0 0x1100e000 0 0x1000>;
@@ -948,6 +957,15 @@
 			mediatek,ufs-disable-mcq;
 			mediatek,ufs-broken-vcc;
 		};
+		lvts_mcu: thermal-sensor@11278000 {
+			compatible = "mediatek,mt6893-lvts-mcu";
+			reg = <0 0x11278000 0 0x1000>;
+			interrupts = <0 170 4 0>;
+			clocks = <&infracfg 4>;
+			nvmem-cells = <&lvts_e_data1>;
+			nvmem-cell-names = "lvts-calib-data-1";
+			#thermal-sensor-cells = <1>;
+		};
 		mmc0: mmc@11230000 {
 			compatible = "mediatek,mt6893-mmc", "mediatek,mt8183-mmc";
 			reg = <0 0x11230000 0 0x10000>, <0 0x11f50000 0 0x1000>;
@@ -989,11 +1007,8 @@
 				reg = <0x1b0 0x1>;
 				bits = <0 5>;
 			};
-			lvts_efuse_data1: lvts1-calib@1bc {
-				reg = <0x1d0 0x10>;
-			};
-			lvts_efuse_data2: lvts2-calib@1d0 {
-				reg = <0x2f8 0x48>;
+			lvts_e_data1: data1@1c0 {
+				reg = <0x1c0 0x58>;
 			};
 		};
 		imp_iic_wrap_e: clock-controller@11cb2000 {
@@ -1093,6 +1108,212 @@
 									<0 378 4 0>;
 			power-domains = <&spm 0>;
 			status = "disabled";
+		};
+	};
+	thermal-zones {
+		cpu0-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_mcu 4>;
+			trips {
+				cpu0_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		cpu1-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_mcu 5>;
+			trips {
+				cpu1_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		cpu2-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_mcu 6>;
+			trips {
+				cpu2_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		cpu3-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_mcu 7>;
+			trips {
+				cpu3_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		cpu4-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_mcu 0>;
+			trips {
+				cpu4_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		cpu5-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_mcu 1>;
+			trips {
+				cpu5_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		cpu6-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_mcu 2>;
+			trips {
+				cpu6_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		cpu7-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_mcu 3>;
+			trips {
+				cpu7_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		vpu0-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_ap 8>;
+			trips {
+				vpu0_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		vpu1-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_ap 9>;
+			trips {
+				vpu1_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		gpu-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_ap 10>;
+			trips {
+				gpu_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		gpu1-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_ap 11>;
+			trips {
+				gpu1_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		infra-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_ap 12>;
+			trips {
+				infra_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		cam-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_ap 13>;
+			trips {
+				cam_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		md0-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_ap 14>;
+			trips {
+				md0_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		md1-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_ap 15>;
+			trips {
+				md1_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
+		};
+		md2-thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <0>;
+			thermal-sensors = <&lvts_ap 16>;
+			trips {
+				md2_crit: trip-crit {
+					temperature = <117000>;
+					hysteresis = <0>;
+					type = "critical";
+				};
+			};
 		};
 	};
 };
@@ -1255,8 +1476,6 @@
 			};
 			mt6359_vcn33_1_ldo_reg: ldo_vcn33_1 {
 				regulator-name = "vcn33_1";
-				regulator-min-microvolt = <3300000>;
-				regulator-max-microvolt = <3300000>;
 			};
 			mt6359_vaux18_ldo_reg: ldo_vaux18 {
 				regulator-name = "vaux18";
@@ -1317,8 +1536,6 @@
 			};
 			mt6359_vcn33_2_ldo_reg: ldo_vcn33_2 {
 				regulator-name = "vcn33_2";
-				regulator-min-microvolt = <3300000>;
-				regulator-max-microvolt = <3300000>;
 			};
 			mt6359_va12_ldo_reg: ldo_va12 {
 				regulator-name = "va12";
@@ -1498,6 +1715,14 @@
 			output-high;
 		};
 	};
+};
+&mt6359_vcn33_1_ldo_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+};
+&mt6359_vcn33_2_ldo_reg {
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
 };
 &wifi {
 	memory-region = <&{/reserved-memory/consys-reserve-memory}>;
