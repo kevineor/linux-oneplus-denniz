@@ -239,6 +239,8 @@ void mt792x_stop(struct ieee80211_hw *hw, bool suspend)
 	cancel_delayed_work_sync(&dev->pm.ps_work);
 	cancel_work_sync(&dev->pm.wake_work);
 	cancel_work_sync(&dev->reset_work);
+	cancel_work_sync(&dev->mt6893_ba_work);
+	skb_queue_purge(&dev->mt6893_ba_list);
 	mt76_connac_free_pending_tx_skbs(&dev->pm, NULL);
 
 	if (is_connac2(&dev->mt76)) {

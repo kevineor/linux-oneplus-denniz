@@ -329,6 +329,7 @@ void mt7921_set_runtime_pm(struct mt792x_dev *dev);
 void mt7921_mcu_set_suspend_iter(void *priv, u8 *mac,
 				 struct ieee80211_vif *vif);
 void mt7921_set_ipv6_ns_work(struct work_struct *work);
+void mt7921_mcu_mt6893_ba_work(struct work_struct *work);
 
 int mt7921_mcu_set_sniffer(struct mt792x_dev *dev, struct ieee80211_vif *vif,
 			   bool enable);

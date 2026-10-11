@@ -308,6 +308,10 @@ struct mt792x_dev {
 
 	struct mac_address macaddr_list[8];
 
+	/* MT6893: RX_ADDBA and RX_DELBA events, handled under the mutex. */
+	struct work_struct mt6893_ba_work;
+	struct sk_buff_head mt6893_ba_list;
+
 	/* MT6893: the AP of the station interface, source of group frames. */
 	struct mt792x_sta *mt6893_ap;
 

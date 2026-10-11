@@ -824,6 +824,52 @@ mt7921_mcu_rssi_monitor_event(struct mt792x_dev *dev, struct sk_buff *skb)
 						   mt7921_mcu_rssi_monitor_iter, event);
 }
 
+#define MT6893_EVENT_RX_ADDBA		0x0a
+#define MT6893_EVENT_RX_DELBA		0x0b
+
+/*
+ * The MT6893 firmware answers the ADDBA requests itself, then tells the host
+ * to reorder (qmHandleEventRxAddBa(), qmHandleEventRxDelBa()). Without it,
+ * the retried subframes of an A-MPDU come late and fail the PN check.
+ */
+void mt7921_mcu_mt6893_ba_work(struct work_struct *work)
+{
+	struct mt792x_dev *dev = container_of(work, struct mt792x_dev,
+					      mt6893_ba_work);
+	struct sk_buff *skb;
+
+	while ((skb = skb_dequeue(&dev->mt6893_ba_list))) {
+		struct mt76_connac2_mcu_rxd *rxd = (void *)skb->data;
+		u8 *ev = skb->data + sizeof(*rxd);
+		struct mt76_wcid *wcid;
+
+		if (skb->len < sizeof(*rxd) + 8 ||
+		    ev[0] >= ARRAY_SIZE(dev->mt76.wcid))
+			goto next;
+
+		mt792x_mutex_acquire(dev);
+		wcid = rcu_dereference_protected(dev->mt76.wcid[ev[0]],
+						 lockdep_is_held(&dev->mt76.mutex));
+		if (wcid && wcid->sta) {
+			if (rxd->eid == MT6893_EVENT_RX_ADDBA) {
+				/* token, BA parameter set, timeout, SSN */
+				u16 param = get_unaligned_le16(ev + 2);
+				u16 ssn = get_unaligned_le16(ev + 6) >> 4;
+				u16 size = param >> 6;
+
+				mt76_rx_aggr_start(&dev->mt76, wcid,
+						   (param >> 2) & 0xf, ssn,
+						   size ?: IEEE80211_MAX_AMPDU_BUF_HT);
+			} else {
+				mt76_rx_aggr_stop(&dev->mt76, wcid, ev[1] & 0xf);
+			}
+		}
+		mt792x_mutex_release(dev);
+next:
+		dev_kfree_skb(skb);
+	}
+}
+
 static void
 mt7921_mcu_rx_unsolicited_event(struct mt792x_dev *dev, struct sk_buff *skb)
 {
@@ -858,6 +904,14 @@ mt7921_mcu_rx_unsolicited_event(struct mt792x_dev *dev, struct sk_buff *skb)
 	case MCU_EVENT_ROC:
 		if (is_mt6893(&dev->mt76))
 			mt7921_mcu_legacy_roc_event(dev, skb);
+		break;
+	case MT6893_EVENT_RX_ADDBA:
+	case MT6893_EVENT_RX_DELBA:
+		if (is_mt6893(&dev->mt76)) {
+			skb_queue_tail(&dev->mt6893_ba_list, skb);
+			ieee80211_queue_work(dev->mt76.hw, &dev->mt6893_ba_work);
+			return;
+		}
 		break;
 	default:
 		break;

@@ -199,6 +199,8 @@ int mt7921_register_device(struct mt792x_dev *dev)
 #if IS_ENABLED(CONFIG_IPV6)
 	INIT_WORK(&dev->ipv6_ns_work, mt7921_set_ipv6_ns_work);
 	skb_queue_head_init(&dev->ipv6_ns_list);
+	INIT_WORK(&dev->mt6893_ba_work, mt7921_mcu_mt6893_ba_work);
+	skb_queue_head_init(&dev->mt6893_ba_list);
 #endif
 	skb_queue_head_init(&dev->phy.scan_event_list);
 	skb_queue_head_init(&dev->coredump.msg_list);
