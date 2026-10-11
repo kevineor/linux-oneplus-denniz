@@ -1333,6 +1333,11 @@ mt76_check_ccmp_pn(struct sk_buff *skb)
 		goto skip_hdr_check;
 
 	hdr = mt76_skb_get_hdr(skb);
+
+	/* The station counters are for the pairwise key only. */
+	if (is_multicast_ether_addr(hdr->addr1))
+		return;
+
 	if (!(status->flag & RX_FLAG_IV_STRIPPED)) {
 		/*
 		 * Validate the first fragment both here and in mac80211
