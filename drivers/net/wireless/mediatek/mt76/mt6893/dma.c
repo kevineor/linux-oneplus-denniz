@@ -95,31 +95,39 @@ void mt6893_dma_disable(struct mt6893_dev *dev)
 	mt76_wr(dev, MT6893_WFDMA1(MT6893_WFDMA_RST_DRX_PTR), ~0);
 }
 
-/* Prefetch windows: soc3_0asicConnac2xWfdmaManualPrefetch(), depth 4. */
+/*
+ * Prefetch windows, as soc3_0asicConnac2xWfdmaManualPrefetch(): every ring of
+ * both WFDMA, in order, depth 4, each window ending where the next ring's
+ * starts. Unprogrammed rings leave the window of the ring before them
+ * unbounded, and the TX data ring then served descriptors four entries
+ * stale under load: old frames sent again, new ones never reported.
+ */
 static void mt6893_dma_prefetch(struct mt6893_dev *dev)
 {
-#define PREFETCH(_base)		((_base) << 16 | 0x4)
-	mt76_wr(dev, MT6893_WFDMA0(MT6893_RX_RING_EXT_CTRL_BASE) +
-		MT6893_RXQ_ID_DATA0 * 4, PREFETCH(0x000));
-	mt76_wr(dev, MT6893_WFDMA0(MT6893_RX_RING_EXT_CTRL_BASE) +
-		MT6893_RXQ_ID_DATA1 * 4, PREFETCH(0x040));
-	mt76_wr(dev, MT6893_WFDMA1(MT6893_RX_RING_EXT_CTRL_BASE) +
-		MT6893_RXQ_ID_MCU * 4, PREFETCH(0x200));
-	mt76_wr(dev, MT6893_WFDMA0(MT6893_RX_RING_EXT_CTRL_BASE) + 2 * 4,
-		PREFETCH(0x080));
-	mt76_wr(dev, MT6893_WFDMA0(MT6893_RX_RING_EXT_CTRL_BASE) + 3 * 4,
-		PREFETCH(0x0c0));
-	mt76_wr(dev, MT6893_WFDMA1(MT6893_RX_RING_EXT_CTRL_BASE) + 1 * 4,
-		PREFETCH(0x240));
-	mt76_wr(dev, MT6893_WFDMA1(MT6893_RX_RING_EXT_CTRL_BASE) + 2 * 4,
-		PREFETCH(0x280));
-	mt76_wr(dev, MT6893_WFDMA1(MT6893_TX_RING_EXT_CTRL_BASE) +
-		MT6893_TXQ_ID_BAND0 * 4, PREFETCH(0x2c0));
-	mt76_wr(dev, MT6893_WFDMA1(MT6893_TX_RING_EXT_CTRL_BASE) +
-		MT6893_MCUQ_ID_FWDL * 4, PREFETCH(0x5c0));
-	mt76_wr(dev, MT6893_WFDMA1(MT6893_TX_RING_EXT_CTRL_BASE) +
-		MT6893_MCUQ_ID_WM * 4, PREFETCH(0x600));
-#undef PREFETCH
+	static const struct {
+		bool wfdma1, tx;
+		u8 first, last;
+	} rings[] = {
+		{ false, false, 0, 7 },		/* WFDMA0 RX 0-7 */
+		{ true, false, 0, 2 },		/* WFDMA1 RX 0-2 */
+		{ true, true, 0, 5 },		/* WFDMA1 TX 0-5 */
+		{ true, true, 8, 13 },		/* WFDMA1 TX 8-13 */
+		{ true, true, 16, 19 },		/* WFDMA1 TX 16-19 */
+	};
+	u32 val = 0x4;
+	int i, r;
+
+	for (i = 0; i < ARRAY_SIZE(rings); i++) {
+		u32 base = rings[i].tx ? MT6893_TX_RING_EXT_CTRL_BASE :
+					 MT6893_RX_RING_EXT_CTRL_BASE;
+
+		base = rings[i].wfdma1 ? MT6893_WFDMA1(base) :
+					 MT6893_WFDMA0(base);
+		for (r = rings[i].first; r <= rings[i].last; r++) {
+			mt76_wr(dev, base + r * 4, val);
+			val += 0x00400000;
+		}
+	}
 }
 
 /* OMIT_RX_INFO only on WFDMA1: MCU events carry no RX info. */
