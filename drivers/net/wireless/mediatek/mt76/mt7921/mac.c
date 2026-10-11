@@ -501,6 +501,71 @@ out:
 	rcu_read_unlock();
 }
 
+/*
+ * Version 2 of the TX free report, sent by the MT6893 firmware: 7-bit MSDU
+ * count, then one word per MSDU with its token and WLAN index, without pair
+ * words, status nor TX count.
+ */
+#define MT7921_TX_FREE_VER		GENMASK(18, 16)
+#define MT7921_TX_FREE_MSDU_CNT_V2	GENMASK(6, 0)
+#define MT7921_TX_FREE_MSDU_ID_V2	GENMASK(14, 0)
+#define MT7921_TX_FREE_WLAN_ID_V2	GENMASK(24, 15)
+
+static void mt7921_mac_tx_free_v2(struct mt792x_dev *dev, void *data, int len)
+{
+	struct mt76_connac_tx_free *free = data;
+	__le32 *tx_info = (__le32 *)(data + sizeof(*free));
+	struct mt76_dev *mdev = &dev->mt76;
+	struct mt76_txwi_cache *txwi;
+	struct sk_buff *skb, *tmp;
+	void *end = data + len;
+	LIST_HEAD(free_list);
+	bool wake = false;
+	u8 i, count;
+
+	count = le16_get_bits(free->ctrl, MT7921_TX_FREE_MSDU_CNT_V2);
+	if (WARN_ON_ONCE((void *)&tx_info[count] > end))
+		return;
+
+	for (i = 0; i < count; i++) {
+		u32 info = le32_to_cpu(tx_info[i]);
+		struct ieee80211_sta *sta;
+		struct mt76_wcid *wcid;
+
+		wcid = mt76_wcid_ptr(dev, FIELD_GET(MT7921_TX_FREE_WLAN_ID_V2,
+						    info));
+		sta = wcid_to_sta(wcid);
+		if (sta) {
+			struct mt792x_link_sta *mlink;
+
+			mlink = container_of(wcid, struct mt792x_link_sta, wcid);
+			mt76_wcid_add_poll(&dev->mt76, &mlink->wcid);
+		}
+
+		txwi = mt76_token_release(mdev,
+					  FIELD_GET(MT7921_TX_FREE_MSDU_ID_V2, info),
+					  &wake);
+		if (!txwi)
+			continue;
+
+		mt76_connac2_txwi_free(mdev, txwi, sta, &free_list);
+	}
+
+	if (wake)
+		mt76_set_tx_blocked(&dev->mt76, false);
+
+	list_for_each_entry_safe(skb, tmp, &free_list, list) {
+		skb_list_del_init(skb);
+		napi_consume_skb(skb, 1);
+	}
+
+	rcu_read_lock();
+	mt7921_mac_sta_poll(dev);
+	rcu_read_unlock();
+
+	mt76_worker_schedule(&dev->mt76.tx_worker);
+}
+
 static void mt7921_mac_tx_free(struct mt792x_dev *dev, void *data, int len)
 {
 	struct mt76_connac_tx_free *free = data;
@@ -518,6 +583,11 @@ static void mt7921_mac_tx_free(struct mt792x_dev *dev, void *data, int len)
 	/* clean DMA queues and unmap buffers first */
 	mt76_queue_tx_cleanup(dev, dev->mphy.q_tx[MT_TXQ_PSD], false);
 	mt76_queue_tx_cleanup(dev, dev->mphy.q_tx[MT_TXQ_BE], false);
+
+	if (le32_get_bits(free->txd, MT7921_TX_FREE_VER) == 2) {
+		mt7921_mac_tx_free_v2(dev, data, len);
+		return;
+	}
 
 	count = le16_get_bits(free->ctrl, MT_TX_FREE_MSDU_CNT);
 	if (WARN_ON_ONCE((void *)&tx_info[count] > end))
