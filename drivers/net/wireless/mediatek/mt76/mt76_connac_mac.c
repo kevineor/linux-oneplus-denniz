@@ -976,9 +976,12 @@ int mt76_connac2_reverse_frag0_hdr_trans(struct ieee80211_vif *vif,
 	struct ieee80211_sta *sta;
 	struct ieee80211_hdr hdr;
 	u16 frame_control;
+	bool group;
 
-	if (le32_get_bits(rxd[3], MT_RXD3_NORMAL_ADDR_TYPE) !=
-	    MT_RXD3_NORMAL_U2M)
+	/* Group addressed frames come translated from MT6893 only. */
+	group = le32_get_bits(rxd[3], MT_RXD3_NORMAL_ADDR_TYPE) !=
+		MT_RXD3_NORMAL_U2M;
+	if (group && !is_multicast_ether_addr(eth_hdr->h_dest))
 		return -EINVAL;
 
 	if (!(le32_to_cpu(rxd[1]) & MT_RXD1_NORMAL_GROUP_4))
@@ -992,7 +995,7 @@ int mt76_connac2_reverse_frag0_hdr_trans(struct ieee80211_vif *vif,
 	hdr.seq_ctrl = cpu_to_le16(le32_get_bits(rxd[8], MT_RXD8_SEQ_CTRL));
 	hdr.duration_id = 0;
 
-	ether_addr_copy(hdr.addr1, vif->addr);
+	ether_addr_copy(hdr.addr1, group ? eth_hdr->h_dest : vif->addr);
 	ether_addr_copy(hdr.addr2, sta->addr);
 	switch (frame_control & (IEEE80211_FCTL_TODS |
 				 IEEE80211_FCTL_FROMDS)) {

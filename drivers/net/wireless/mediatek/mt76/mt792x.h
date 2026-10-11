@@ -308,6 +308,9 @@ struct mt792x_dev {
 
 	struct mac_address macaddr_list[8];
 
+	/* MT6893: the AP of the station interface, source of group frames. */
+	struct mt792x_sta *mt6893_ap;
+
 	/* MT6893: per queue, when the newest frame reported was handed over. */
 	unsigned long tx_done_newest[__MT_TXQ_MAX];
 	/* MT6893: when the last TX free report came. */

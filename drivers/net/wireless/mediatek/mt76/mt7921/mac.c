@@ -214,6 +214,17 @@ mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
 	idx = FIELD_GET(MT_RXD1_NORMAL_WLAN_IDX, rxd1);
 	status->wcid = mt792x_rx_get_wcid(dev, idx, unicast);
 
+	/*
+	 * MT6893 group frames carry the group key WTBL entry, or the own one,
+	 * neither of them a station: they come from the AP.
+	 */
+	if (is_mt6893(&dev->mt76) && !unicast) {
+		struct mt792x_sta *ap = READ_ONCE(dev->mt6893_ap);
+
+		if (ap)
+			status->wcid = &ap->deflink.wcid;
+	}
+
 	if (status->wcid) {
 		mlink = container_of(status->wcid, struct mt792x_link_sta, wcid);
 		msta = container_of(mlink, struct mt792x_sta, deflink);
@@ -389,9 +400,10 @@ mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
 	hdr_gap = (u8 *)rxd - skb->data + 2 * remove_pad;
 
 	/*
-	 * The MT6893 firmware translates all unicast data from a known station
-	 * to 802.3, EAPOL included, while mac80211 only accepts 802.3 frames
-	 * from authorized stations. Restore the 802.11 header from group 4.
+	 * The MT6893 firmware translates all data from a known station to
+	 * 802.3, EAPOL and group addressed frames included, while mac80211
+	 * only accepts 802.3 frames from authorized stations, and none for
+	 * the group. Restore the 802.11 header from group 4.
 	 */
 	if (hdr_trans && is_mt6893(&dev->mt76) && msta && msta->vif &&
 	    !ieee80211_has_morefrags(fc)) {

@@ -917,8 +917,11 @@ int mt7921_mac_sta_add(struct mt76_dev *mdev, struct ieee80211_vif *vif,
 	if (ret)
 		return ret;
 
-	if (vif->type == NL80211_IFTYPE_STATION)
+	if (vif->type == NL80211_IFTYPE_STATION) {
 		mvif->wep_sta = msta;
+		if (is_mt6893(mdev) && !sta->tdls)
+			WRITE_ONCE(dev->mt6893_ap, msta);
+	}
 
 	mt7921_mac_wtbl_update(dev, idx,
 			       MT_WTBL_UPDATE_ADM_COUNT_CLEAR);
@@ -1000,6 +1003,8 @@ void mt7921_mac_sta_remove(struct mt76_dev *mdev, struct ieee80211_vif *vif,
 		struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
 
 		mvif->wep_sta = NULL;
+		if (READ_ONCE(dev->mt6893_ap) == msta)
+			WRITE_ONCE(dev->mt6893_ap, NULL);
 		ewma_rssi_init(&mvif->bss_conf.rssi);
 		if (!sta->tdls && is_mt6893(&dev->mt76)) {
 			mvif->mt6893_enc = 0;
