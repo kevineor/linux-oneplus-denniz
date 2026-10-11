@@ -504,7 +504,8 @@ out:
 /*
  * Version 2 of the TX free report, sent by the MT6893 firmware: 7-bit MSDU
  * count, then one word per MSDU with its token and WLAN index, without pair
- * words, status nor TX count.
+ * words, status nor TX count. Some entries name another token than the
+ * frame sent: mt792x_mac_token_reclaim() returns the forgotten ones.
  */
 #define MT7921_TX_FREE_VER		GENMASK(18, 16)
 #define MT7921_TX_FREE_MSDU_CNT_V2	GENMASK(6, 0)
@@ -527,6 +528,8 @@ static void mt7921_mac_tx_free_v2(struct mt792x_dev *dev, void *data, int len)
 	if (WARN_ON_ONCE((void *)&tx_info[count] > end))
 		return;
 
+	dev->tx_done_last = jiffies;
+
 	for (i = 0; i < count; i++) {
 		u32 info = le32_to_cpu(tx_info[i]);
 		struct ieee80211_sta *sta;
@@ -548,6 +551,9 @@ static void mt7921_mac_tx_free_v2(struct mt792x_dev *dev, void *data, int len)
 		if (!txwi)
 			continue;
 
+		if (txwi->qid < __MT_TXQ_MAX &&
+		    time_after(txwi->jiffies, dev->tx_done_newest[txwi->qid]))
+			dev->tx_done_newest[txwi->qid] = txwi->jiffies;
 		mt76_connac2_txwi_free(mdev, txwi, sta, &free_list);
 	}
 
@@ -563,6 +569,7 @@ static void mt7921_mac_tx_free_v2(struct mt792x_dev *dev, void *data, int len)
 	mt7921_mac_sta_poll(dev);
 	rcu_read_unlock();
 
+	mt792x_mac_token_reclaim(dev, false);
 	mt76_worker_schedule(&dev->mt76.tx_worker);
 }
 

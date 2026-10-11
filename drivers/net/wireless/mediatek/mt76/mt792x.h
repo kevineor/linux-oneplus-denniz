@@ -308,6 +308,11 @@ struct mt792x_dev {
 
 	struct mac_address macaddr_list[8];
 
+	/* MT6893: per queue, when the newest frame reported was handed over. */
+	unsigned long tx_done_newest[__MT_TXQ_MAX];
+	/* MT6893: when the last TX free report came. */
+	unsigned long tx_done_last;
+
 	const struct mt76_bus_ops *bus_ops;
 	struct mt792x_phy phy;
 
@@ -473,6 +478,7 @@ struct mt76_wcid *mt792x_rx_get_wcid(struct mt792x_dev *dev, u16 idx,
 void mt792x_mac_update_mib_stats(struct mt792x_phy *phy);
 void mt792x_mac_set_timeing(struct mt792x_phy *phy);
 void mt792x_mac_work(struct work_struct *work);
+void mt792x_mac_token_reclaim(struct mt792x_dev *dev, bool force);
 void mt792x_remove_interface(struct ieee80211_hw *hw,
 			     struct ieee80211_vif *vif);
 void mt792x_tx(struct ieee80211_hw *hw, struct ieee80211_tx_control *control,

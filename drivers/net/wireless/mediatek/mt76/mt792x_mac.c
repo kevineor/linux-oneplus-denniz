@@ -6,6 +6,67 @@
 #include "mt792x.h"
 #include "mt792x_regs.h"
 
+#define MT792X_TOKEN_TIMEOUT	(HZ / 2)
+#define MT792X_TOKEN_OVERTAKEN	(HZ / 50)
+#define MT792X_TOKEN_RECLAIM	32
+
+/*
+ * The MT6893 firmware sometimes names in its TX free report another token
+ * than the frame it sent, and never reports that frame. As the vendor driver
+ * does, complete such frames: their airtime would otherwise stay pending in
+ * mac80211, and a TCP sender waits for them. The firmware reports the frames
+ * of each queue in the order they were handed over, so a frame handed over
+ * well before the newest reported one of its queue is lost. A frame still out
+ * after a timeout is lost as well, but only once the reports have stopped:
+ * under load, a frame may wait longer than that in the hardware queue.
+ */
+void mt792x_mac_token_reclaim(struct mt792x_dev *dev, bool force)
+{
+	struct mt76_dev *mdev = &dev->mt76;
+	int i, id, n = 0, ids[MT792X_TOKEN_RECLAIM];
+	struct mt76_txwi_cache *txwi;
+	struct sk_buff *skb, *tmp;
+	LIST_HEAD(free_list);
+	bool wake = false;
+
+	if (!is_mt6893(mdev))
+		return;
+
+	spin_lock_bh(&mdev->token_lock);
+	idr_for_each_entry(&mdev->token, txwi, id) {
+		if (!txwi->skb || txwi->qid >= __MT_TXQ_MAX)
+			continue;
+		if (time_before(txwi->jiffies + MT792X_TOKEN_OVERTAKEN,
+				dev->tx_done_newest[txwi->qid]) ||
+		    (force && time_after(jiffies,
+					 txwi->jiffies + MT792X_TOKEN_TIMEOUT) &&
+		     time_after(jiffies,
+				dev->tx_done_last + MT792X_TOKEN_TIMEOUT)))
+			ids[n++] = id;
+		if (n == ARRAY_SIZE(ids))
+			break;
+	}
+	spin_unlock_bh(&mdev->token_lock);
+
+	for (i = 0; i < n; i++) {
+		txwi = mt76_token_release(mdev, ids[i], &wake);
+		if (txwi)
+			mt76_connac2_txwi_free(mdev, txwi, NULL, &free_list);
+	}
+
+	if (wake)
+		mt76_set_tx_blocked(mdev, false);
+
+	list_for_each_entry_safe(skb, tmp, &free_list, list) {
+		skb_list_del_init(skb);
+		dev_kfree_skb_any(skb);
+	}
+
+	if (n)
+		dev_dbg(mdev->dev, "%d TX tokens reclaimed\n", n);
+}
+EXPORT_SYMBOL_GPL(mt792x_mac_token_reclaim);
+
 void mt792x_mac_work(struct work_struct *work)
 {
 	struct mt792x_phy *phy;
@@ -27,6 +88,7 @@ void mt792x_mac_work(struct work_struct *work)
 	mt792x_mutex_release(phy->dev);
 
 	mt76_tx_status_check(mphy->dev, false);
+	mt792x_mac_token_reclaim(phy->dev, true);
 	ieee80211_queue_delayed_work(phy->mt76->hw, &mphy->mac_work,
 				     MT792x_WATCHDOG_TIME);
 }

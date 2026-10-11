@@ -453,6 +453,8 @@ struct mt76_txwi_cache {
 
 	u8 qid;
 	u8 phy_idx;
+
+	unsigned long jiffies;	/* handed to the hardware */
 };
 
 struct mt76_rx_tid {
@@ -540,6 +542,7 @@ struct mt76_hw_cap {
 #define MT_DRV_AMSDU_OFFLOAD		BIT(5)
 #define MT_DRV_IGNORE_TXS_FAILED	BIT(6)
 #define MT_DRV_HW_PS_BUFFERING		BIT(7)
+#define MT_DRV_TOKEN_CYCLIC		BIT(8)
 
 struct mt76_driver_ops {
 	u32 drv_flags;

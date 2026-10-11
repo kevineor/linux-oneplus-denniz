@@ -933,9 +933,18 @@ int mt76_token_consume(struct mt76_dev *dev, struct mt76_txwi_cache **ptxwi)
 
 	spin_lock_bh(&dev->token_lock);
 
-	token = idr_alloc(&dev->token, *ptxwi, dev->token_start,
-			  dev->token_start + dev->token_size,
-			  GFP_ATOMIC);
+	/*
+	 * Cyclic allocation keeps a late or wrong TX free entry away from a
+	 * token just handed to a new frame.
+	 */
+	if (dev->drv->drv_flags & MT_DRV_TOKEN_CYCLIC)
+		token = idr_alloc_cyclic(&dev->token, *ptxwi, dev->token_start,
+					 dev->token_start + dev->token_size,
+					 GFP_ATOMIC);
+	else
+		token = idr_alloc(&dev->token, *ptxwi, dev->token_start,
+				  dev->token_start + dev->token_size,
+				  GFP_ATOMIC);
 	if (token >= dev->token_start) {
 		dev->token_count++;
 

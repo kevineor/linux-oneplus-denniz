@@ -145,6 +145,7 @@ static int mt6893_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 
 	t = (struct mt76_txwi_cache *)(txwi + mdev->drv->txwi_size);
 	t->skb = tx_info->skb;
+	t->jiffies = jiffies;	/* for mt792x_mac_token_reclaim() */
 
 	id = mt76_token_consume(mdev, &t);
 	if (id < 0)
@@ -200,7 +201,7 @@ struct mt6893_dev *mt6893_mmio_probe(struct device *pdev,
 	static const struct mt76_driver_ops drv_ops = {
 		.txwi_size = MT_TXD_SIZE + sizeof(struct mt76_connac_hw_txp),
 		.drv_flags = MT_DRV_TXWI_NO_FREE | MT_DRV_HW_MGMT_TXQ |
-			     MT_DRV_AMSDU_OFFLOAD,
+			     MT_DRV_AMSDU_OFFLOAD | MT_DRV_TOKEN_CYCLIC,
 		.survey_flags = SURVEY_INFO_TIME_TX |
 				SURVEY_INFO_TIME_RX |
 				SURVEY_INFO_TIME_BSS_RX,
