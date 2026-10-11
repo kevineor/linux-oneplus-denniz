@@ -1056,6 +1056,26 @@ mt7921_ampdu_action(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 
 	mtxq = (struct mt76_txq *)txq->drv_priv;
 
+	/*
+	 * The MT6893 firmware negotiates the block ack sessions itself, as the
+	 * vendor driver leaves it to (CFG_M0VE_BA_TO_DRIVER 0), and knows no
+	 * unified BA command. A mac80211 TX session never completes and stalls
+	 * its TID; only the RX reordering stays on the host.
+	 */
+	if (is_mt6893(&dev->mt76)) {
+		switch (action) {
+		case IEEE80211_AMPDU_RX_START:
+			mt76_rx_aggr_start(&dev->mt76, &msta->deflink.wcid, tid,
+					   ssn, params->buf_size);
+			return 0;
+		case IEEE80211_AMPDU_RX_STOP:
+			mt76_rx_aggr_stop(&dev->mt76, &msta->deflink.wcid, tid);
+			return 0;
+		default:
+			return -EOPNOTSUPP;
+		}
+	}
+
 	mt792x_mutex_acquire(dev);
 	switch (action) {
 	case IEEE80211_AMPDU_RX_START:
